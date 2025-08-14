@@ -20,7 +20,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "ci": "npm run format && npm run lint && npm run test",
-    "make": "powershell -ExecutionPolicy Bypass -File ci.ps1"
+    "make": "powershell -ExecutionPolicy Bypass -File ci.ps1",
+    "check-env": "node scripts/check-env.js",
+    "setup-env": "copy .env.example .env"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.39.1",
