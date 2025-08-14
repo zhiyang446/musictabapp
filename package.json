@@ -1,0 +1,26 @@
+{
+  "name": "musictabapp-monorepo",
+  "version": "0.1.0",
+  "description": "Music transcription app monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=18.17.0",
+    "npm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "echo 'Development scripts will be added in later tasks'",
+    "build": "echo 'Build scripts will be added in later tasks'",
+    "test": "echo 'Test scripts will be added in later tasks'",
+    "lint": "echo 'Lint scripts will be added in later tasks'"
+  },
+  "devDependencies": {
+    "eslint": "^8.50.0",
+    "prettier": "^3.0.3",
+    "typescript": "^5.2.2"
+  },
+  "packageManager": "npm@9.8.1"
+}
