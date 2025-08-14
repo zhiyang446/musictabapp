@@ -14,11 +14,13 @@
   "scripts": {
     "dev": "echo 'Development scripts will be added in later tasks'",
     "build": "echo 'Build scripts will be added in later tasks'",
-    "test": "echo 'Test scripts will be added in later tasks'",
+    "test": "echo 'No tests yet - placeholder for future Jest tests'",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "ci": "npm run format && npm run lint && npm run test",
+    "make": "powershell -ExecutionPolicy Bypass -File ci.ps1"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.39.1",

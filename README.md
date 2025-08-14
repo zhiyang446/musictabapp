@@ -13,11 +13,13 @@
 ## 🏗️ 技术架构
 
 ### 前端
+
 - **React Native**：跨平台移动应用开发
 - **Expo**：快速开发和热更新支持
 - **Supabase Client**：身份验证和实时数据同步
 
 ### 后端
+
 - **Supabase**：
   - Auth：用户身份验证
   - Database：PostgreSQL 数据库
@@ -28,6 +30,7 @@
 - **队列系统**：Redis + Celery 异步任务处理
 
 ### 核心算法
+
 - **音频分离**：Demucs/HT 源分离技术
 - **音频转录**：针对不同乐器的专业转录算法
 - **乐谱渲染**：LilyPond/MuseScore 乐谱生成
@@ -48,6 +51,7 @@ repo/
 ## 🚀 快速开始
 
 ### 环境要求
+
 - Node.js 18+
 - Python 3.9+
 - Docker & Docker Compose
@@ -56,17 +60,20 @@ repo/
 ### 本地开发
 
 1. **克隆项目**
+
    ```bash
    git clone <repository-url>
    cd musictabapp
    ```
 
 2. **启动后端服务**
+
    ```bash
    docker-compose up -d
    ```
 
 3. **启动移动应用**
+
    ```bash
    cd apps/mobile
    npm install
@@ -81,8 +88,9 @@ repo/
 ## 🎯 MVP 功能
 
 当前版本专注于核心功能：
+
 - ✅ 鼓谱转录
-- ✅ 贝斯转录  
+- ✅ 贝斯转录
 - ✅ MusicXML/MIDI/PDF 输出
 - ✅ PDF 预览功能
 - ✅ 实时任务进度

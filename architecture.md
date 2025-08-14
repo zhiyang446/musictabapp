@@ -8,21 +8,21 @@
 
 **关键能力**
 
-* 输入：本地上传音频或提交 YouTube 链接
-* 处理：可选源分离（drums/bass/guitar/piano/vocals），按目标乐器转录
-* 输出：MusicXML / MIDI / PDF（可预览和下载）
-* 控制：登录鉴权、任务状态、配额与用量、可观测性
+- 输入：本地上传音频或提交 YouTube 链接
+- 处理：可选源分离（drums/bass/guitar/piano/vocals），按目标乐器转录
+- 输出：MusicXML / MIDI / PDF（可预览和下载）
+- 控制：登录鉴权、任务状态、配额与用量、可观测性
 
 **核心组件**
 
 1. **移动端 App（React Native）**
    上传/输入链接 → 选择乐器 → 创建任务 → 订阅进度 → 预览/下载产物
 2. **Supabase（Auth + Postgres + Storage + Realtime）**
+   - Auth：邮箱/第三方登录
+   - DB：任务状态机、制品索引、用量日志
+   - Storage：原始音频 / 分离 stems / 输出产物
+   - Realtime：任务状态与进度推送
 
-   * Auth：邮箱/第三方登录
-   * DB：任务状态机、制品索引、用量日志
-   * Storage：原始音频 / 分离 stems / 输出产物
-   * Realtime：任务状态与进度推送
 3. **Orchestrator（API 网关：FastAPI 或 Supabase Edge Functions）**
    鉴权与权限、创建任务、签名上传、签名下载、推送队列、汇总状态
 4. **ML Worker（Python + GPU）**
@@ -100,38 +100,37 @@ repo/
 
 ### apps/mobile
 
-* **app/(auth)**：注册/登录/会话管理（Supabase Auth）
-* **app/upload**：
+- **app/(auth)**：注册/登录/会话管理（Supabase Auth）
+- **app/upload**：
+  - 本地选择音频 → 请求签名 URL → 直传到 Storage
+  - 粘贴 YouTube 链接 → 直接提交后端
 
-  * 本地选择音频 → 请求签名 URL → 直传到 Storage
-  * 粘贴 YouTube 链接 → 直接提交后端
-* **app/instruments**：勾选乐器（drums/bass/guitar/piano/chords），可选开关：是否源分离、精度等级
-* **app/jobs**：任务列表（分页/过滤）、任务详情（进度条/错误显示）
-* **app/viewer**：PDF 预览（WebView）、可选 MIDI 播放器/瀑布流
-* **stores**：UI 局部状态（Zustand/Redux）
-* **services**：
-
-  * `api.ts`：与 Orchestrator 的 REST 交互
-  * `supabase.ts`：单例客户端、Realtime 订阅封装
+- **app/instruments**：勾选乐器（drums/bass/guitar/piano/chords），可选开关：是否源分离、精度等级
+- **app/jobs**：任务列表（分页/过滤）、任务详情（进度条/错误显示）
+- **app/viewer**：PDF 预览（WebView）、可选 MIDI 播放器/瀑布流
+- **stores**：UI 局部状态（Zustand/Redux）
+- **services**：
+  - `api.ts`：与 Orchestrator 的 REST 交互
+  - `supabase.ts`：单例客户端、Realtime 订阅封装
 
 ### services/orchestrator
 
-* **api**：
+- **api**：
+  - `/upload-url`：返回签名上传 URL（或直接走 Supabase 客户端也可）
+  - `/jobs`：创建/查询/取消任务
+  - `/artifacts`：列出与签名下载
 
-  * `/upload-url`：返回签名上传 URL（或直接走 Supabase 客户端也可）
-  * `/jobs`：创建/查询/取消任务
-  * `/artifacts`：列出与签名下载
-* **auth**：校验 Supabase JWT，注入 `user_id` 贯穿请求链
-* **db**：对 `jobs/artifacts/stems/usage_log` 的读写（与 RLS 策略配合）
-* **mq**：将任务（job\_id + 参数）投递到 Celery/队列
-* **storage**：生成短期有效签名 URL 与路径规范
+- **auth**：校验 Supabase JWT，注入 `user_id` 贯穿请求链
+- **db**：对 `jobs/artifacts/stems/usage_log` 的读写（与 RLS 策略配合）
+- **mq**：将任务（job_id + 参数）投递到 Celery/队列
+- **storage**：生成短期有效签名 URL 与路径规范
 
 ### services/worker
 
-* **pipelines**：音频处理主流程：下载→预处理→（可选）分离→按乐器转录→导出→渲染→上传
-* **jobs**：Celery 任务（重试、超时、并发限制、优先级）
-* **io**：操作 Supabase Storage 与 Orchestrator 回调（或直接写 DB）
-* **models**：加载/热身模型，显存与 batch 策略管理
+- **pipelines**：音频处理主流程：下载→预处理→（可选）分离→按乐器转录→导出→渲染→上传
+- **jobs**：Celery 任务（重试、超时、并发限制、优先级）
+- **io**：操作 Supabase Storage 与 Orchestrator 回调（或直接写 DB）
+- **models**：加载/热身模型，显存与 batch 策略管理
 
 ---
 
@@ -200,8 +199,8 @@ create table public.usage_log (
 
 **RLS 建议**
 
-* 开启 `jobs/artifacts/stems/usage_log` 的 RLS：`user_id = auth.uid()` 的行才可见/可写
-* Orchestrator/Worker 使用服务角色（service role key）执行必要的后端写入
+- 开启 `jobs/artifacts/stems/usage_log` 的 RLS：`user_id = auth.uid()` 的行才可见/可写
+- Orchestrator/Worker 使用服务角色（service role key）执行必要的后端写入
 
 ### 4.2 Storage Bucket 规划
 
@@ -245,9 +244,8 @@ POST   /jobs/:id/cancel
 
 1. Worker 直接写 DB（服务账号，受最小权限控制）
 2. Worker 回调 Orchestrator：
-
-   * `POST /jobs/:id/progress { progress }`
-   * `POST /jobs/:id/complete { success, artifacts[], errorMessage? }`
+   - `POST /jobs/:id/progress { progress }`
+   - `POST /jobs/:id/complete { success, artifacts[], errorMessage? }`
 
 ---
 
@@ -255,14 +253,14 @@ POST   /jobs/:id/cancel
 
 **本地 UI 状态（Zustand/Redux）**
 
-* 上传/链接输入、乐器选择、参数（分离/精度）
-* 本地暂存 `storagePath` 或 `youtubeUrl`
+- 上传/链接输入、乐器选择、参数（分离/精度）
+- 本地暂存 `storagePath` 或 `youtubeUrl`
 
 **服务端状态（React Query/SWR）**
 
-* `useJobsList`、`useJobDetail(jobId)`、`useArtifacts(jobId)`
-* 创建任务成功后 `invalidate` 列表与详情
-* **Supabase Realtime** 订阅 `jobs` 表当前用户行变更，合并更新缓存，实现秒级进度刷新
+- `useJobsList`、`useJobDetail(jobId)`、`useArtifacts(jobId)`
+- 创建任务成功后 `invalidate` 列表与详情
+- **Supabase Realtime** 订阅 `jobs` 表当前用户行变更，合并更新缓存，实现秒级进度刷新
 
 **页面流**
 
@@ -287,7 +285,7 @@ POST   /jobs/:id/cancel
 
 ### B. YouTube 模式
 
-* 跳过直传；由 Worker（或 Orchestrator）用 `yt-dlp` 抓取最佳音频轨，后续流程一致
+- 跳过直传；由 Worker（或 Orchestrator）用 `yt-dlp` 抓取最佳音频轨，后续流程一致
 
 ---
 
@@ -295,16 +293,16 @@ POST   /jobs/:id/cancel
 
 **MVP（建议优先）**
 
-* 乐器：**Drums + Bass**（最刚需）
-* 选项：开启“源分离”可显著提升准确率（鼓尤其明显）
-* 产物：**MusicXML + MIDI + PDF**
-* 预览：PDF（WebView）+ 简易 MIDI 播放
+- 乐器：**Drums + Bass**（最刚需）
+- 选项：开启“源分离”可显著提升准确率（鼓尤其明显）
+- 产物：**MusicXML + MIDI + PDF**
+- 预览：PDF（WebView）+ 简易 MIDI 播放
 
 **扩展路径**
 
-* 和弦/调性/BPM 检测（适配吉他/钢琴伴奏）
-* 吉他 Tab 把位建议、钢琴多声部（更强模型+后处理）
-* 乐谱在线微编辑（小节对齐/节拍纠错/音符移位）
+- 和弦/调性/BPM 检测（适配吉他/钢琴伴奏）
+- 吉他 Tab 把位建议、钢琴多声部（更强模型+后处理）
+- 乐谱在线微编辑（小节对齐/节拍纠错/音符移位）
 
 **工具链（Worker）**
 `ffmpeg`、`yt-dlp`、`demucs`、`crepe`/`nnls-chroma`（f0/和弦）、自研后处理、`music21`（MusicXML 操作）、`LilyPond` 或 `MuseScore CLI` 渲染 PDF。
@@ -313,21 +311,21 @@ POST   /jobs/:id/cancel
 
 ## 9) 权限、安全与合规
 
-* **RLS**：表级开启行级安全，仅 `auth.uid()` 可见/可下载
-* **签名 URL**：上传/下载皆使用短效签名
-* **内容合规**：提示用户尊重版权；对超长音频设定上限（如 ≤ 10 分钟）
-* **配额**：按套餐限制并发/总秒数/每月额度；返回 402/429 并引导升级
-* **审计**：记录用量（秒）、GPU 时间，便于计费与成本核算
+- **RLS**：表级开启行级安全，仅 `auth.uid()` 可见/可下载
+- **签名 URL**：上传/下载皆使用短效签名
+- **内容合规**：提示用户尊重版权；对超长音频设定上限（如 ≤ 10 分钟）
+- **配额**：按套餐限制并发/总秒数/每月额度；返回 402/429 并引导升级
+- **审计**：记录用量（秒）、GPU 时间，便于计费与成本核算
 
 ---
 
 ## 10) 可观测性与失败恢复
 
-* **指标**：任务成功率、端到端耗时、阶段耗时（下载/分离/转录/渲染/上传）
-* **日志**：结构化日志（含 `job_id`），错误堆栈
-* **重试**：网络类指数退避 3 次；模型超时直接失败并提示剪裁音频
-* **幂等/缓存**：音频内容 + 参数哈希作为 key，命中则直接返回历史产物
-* **断点与复用**：stems/中间件缓存可复用，失败后从最近阶段恢复
+- **指标**：任务成功率、端到端耗时、阶段耗时（下载/分离/转录/渲染/上传）
+- **日志**：结构化日志（含 `job_id`），错误堆栈
+- **重试**：网络类指数退避 3 次；模型超时直接失败并提示剪裁音频
+- **幂等/缓存**：音频内容 + 参数哈希作为 key，命中则直接返回历史产物
+- **断点与复用**：stems/中间件缓存可复用，失败后从最近阶段恢复
 
 ---
 
@@ -335,14 +333,14 @@ POST   /jobs/:id/cancel
 
 **本地**
 
-* docker-compose：Redis + Postgres（Supabase 本地）+ Worker（CPU 推理）
-* 移动端：Expo（开发快、热更新）
+- docker-compose：Redis + Postgres（Supabase 本地）+ Worker（CPU 推理）
+- 移动端：Expo（开发快、热更新）
 
 **生产**
 
-* Orchestrator：Supabase Edge Functions（轻网关）或自托管 FastAPI（更灵活）
-* Worker：GPU 实例（A10/A100），按队列指标水平扩缩容
-* Storage：Supabase Storage（版本化与生命周期策略可选）
+- Orchestrator：Supabase Edge Functions（轻网关）或自托管 FastAPI（更灵活）
+- Worker：GPU 实例（A10/A100），按队列指标水平扩缩容
+- Storage：Supabase Storage（版本化与生命周期策略可选）
 
 ---
 
@@ -353,20 +351,20 @@ POST   /jobs/:id/cancel
 ```ts
 // services/api.ts
 export async function createJob(payload: {
-  sourceType: 'upload' | 'youtube',
-  storagePath?: string,
-  youtubeUrl?: string,
-  instruments: string[],
-  options?: Record<string, any>
+  sourceType: 'upload' | 'youtube';
+  storagePath?: string;
+  youtubeUrl?: string;
+  instruments: string[];
+  options?: Record<string, any>;
 }) {
   const token = (await supabase.auth.getSession()).data.session?.access_token;
   const res = await fetch(`${API_URL}/jobs`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json() as Promise<{ jobId: string }>;
@@ -427,9 +425,9 @@ apps/mobile/app/
 
 **状态建议**
 
-* `stores/ui.ts`：表单选择、上传进度等纯 UI 状态
-* `services/api.ts`：Orchestrator REST 调用
-* `supabase/client.ts`：单例 + `hooks/useRealtimeJob.ts`：基于 Realtime 的行级订阅
+- `stores/ui.ts`：表单选择、上传进度等纯 UI 状态
+- `services/api.ts`：Orchestrator REST 调用
+- `supabase/client.ts`：单例 + `hooks/useRealtimeJob.ts`：基于 Realtime 的行级订阅
 
 ---
 
@@ -440,4 +438,3 @@ apps/mobile/app/
 3. **V1.5**：吉他 Tab（把位建议）、钢琴多声部
 4. **V2**：乐谱在线微编辑、协作与评论、教育机构/乐队版本
 5. **商业化**：套餐/配额、结算与发票、组织/团队管理
-

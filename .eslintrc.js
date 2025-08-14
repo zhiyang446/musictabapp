@@ -5,9 +5,7 @@ module.exports = {
     es2021: true,
     node: true,
   },
-  extends: [
-    'eslint:recommended',
-  ],
+  extends: ['eslint:recommended'],
   parserOptions: {
     ecmaVersion: 'latest',
     sourceType: 'module',
@@ -16,13 +14,8 @@ module.exports = {
     // Add custom rules here
     'no-console': 'warn',
     'no-unused-vars': 'error',
-    'semi': ['error', 'always'],
-    'quotes': ['error', 'single'],
+    semi: ['error', 'always'],
+    quotes: ['error', 'single'],
   },
-  ignorePatterns: [
-    'node_modules/',
-    'dist/',
-    'build/',
-    '*.config.js',
-  ],
+  ignorePatterns: ['node_modules/', 'dist/', 'build/', '*.config.js'],
 };
