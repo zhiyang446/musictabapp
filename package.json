@@ -15,9 +15,14 @@
     "dev": "echo 'Development scripts will be added in later tasks'",
     "build": "echo 'Build scripts will be added in later tasks'",
     "test": "echo 'Test scripts will be added in later tasks'",
-    "lint": "echo 'Lint scripts will be added in later tasks'"
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.39.1",
+    "@typescript-eslint/parser": "^8.39.1",
     "eslint": "^8.50.0",
     "prettier": "^3.0.3",
     "typescript": "^5.2.2"
