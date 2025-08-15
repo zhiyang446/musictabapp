@@ -133,6 +133,9 @@
                     <button id="refreshJobsBtn" class="btn btn-secondary">
                         <i class="fas fa-sync-alt"></i> Refresh
                     </button>
+                    <button id="autoRefreshBtn" class="btn btn-secondary" data-auto="false">
+                        <i class="fas fa-play"></i> Auto Refresh
+                    </button>
                     <div class="jobs-count">
                         <span id="jobsCount">0</span> jobs
                     </div>
@@ -141,6 +144,43 @@
                     <div class="loading" id="jobsLoading">
                         <i class="fas fa-spinner fa-spin"></i> Loading jobs...
                     </div>
+                </div>
+            </section>
+
+            <!-- Job Status Update Section -->
+            <section class="status-update-section" style="display: none;">
+                <h2><i class="fas fa-edit"></i> Update Job Status</h2>
+                <div class="status-update-form">
+                    <div class="form-group">
+                        <label for="jobSelect">Select Job:</label>
+                        <select id="jobSelect" class="form-select">
+                            <option value="">Choose a job...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="statusSelect">New Status:</label>
+                        <select id="statusSelect" class="form-select">
+                            <option value="">Select status...</option>
+                            <option value="pending">Pending</option>
+                            <option value="processing">Processing</option>
+                            <option value="completed">Completed</option>
+                            <option value="failed">Failed</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="progressInput">Progress (%):</label>
+                        <input type="number" id="progressInput" class="form-input" min="0" max="100" placeholder="0-100">
+                    </div>
+                    <div class="form-group">
+                        <label for="errorInput">Error Message (optional):</label>
+                        <textarea id="errorInput" class="form-textarea" placeholder="Error details..."></textarea>
+                    </div>
+                    <button id="updateStatusBtn" class="btn btn-primary" disabled>
+                        <i class="fas fa-save"></i> Update Status
+                    </button>
+                    <button id="simulateProgressBtn" class="btn btn-success">
+                        <i class="fas fa-play"></i> Simulate Progress
+                    </button>
                 </div>
             </section>
 

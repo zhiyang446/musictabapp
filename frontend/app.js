@@ -9,6 +9,8 @@ class MusicTabApp {
         this.currentUser = null;
         this.audioFiles = [];
         this.transcriptionJobs = [];
+        this.autoRefreshInterval = null;
+        this.isAutoRefreshing = false;
 
         this.initializeApp();
     }
@@ -23,6 +25,7 @@ class MusicTabApp {
         if (this.currentUser) {
             await this.loadAudioFiles();
             await this.loadTranscriptionJobs();
+            this.showStatusUpdateSection();
         }
         
         console.log('✅ App initialized successfully');
@@ -42,6 +45,15 @@ class MusicTabApp {
         // Transcription job creation
         document.getElementById('createJobBtn').addEventListener('click', () => this.createTranscriptionJob());
         document.getElementById('refreshJobsBtn').addEventListener('click', () => this.loadTranscriptionJobs());
+
+        // Auto refresh toggle
+        document.getElementById('autoRefreshBtn').addEventListener('click', () => this.toggleAutoRefresh());
+
+        // Status update functionality
+        document.getElementById('updateStatusBtn').addEventListener('click', () => this.updateJobStatus());
+        document.getElementById('simulateProgressBtn').addEventListener('click', () => this.simulateProgress());
+        document.getElementById('jobSelect').addEventListener('change', () => this.validateStatusUpdateForm());
+        document.getElementById('statusSelect').addEventListener('change', () => this.validateStatusUpdateForm());
 
         // Form validation for transcription job
         document.getElementById('audioFileSelect').addEventListener('change', () => this.validateTranscriptionForm());
@@ -138,6 +150,7 @@ class MusicTabApp {
                 this.showToast('User created successfully!', 'success');
                 await this.loadAudioFiles();
                 await this.loadTranscriptionJobs();
+                this.showStatusUpdateSection();
             } else {
                 throw new Error(data.message || 'Failed to create user');
             }
@@ -454,6 +467,7 @@ class MusicTabApp {
             if (response.ok) {
                 this.transcriptionJobs = data.data;
                 this.displayTranscriptionJobs();
+                this.updateJobSelect();
                 document.getElementById('jobsCount').textContent = this.transcriptionJobs.length;
             } else {
                 throw new Error(data.message || 'Failed to load transcription jobs');
@@ -480,7 +494,7 @@ class MusicTabApp {
             const progressPercentage = job.progress_percentage || 0;
 
             return `
-                <div class="job-item">
+                <div class="job-item" data-job-id="${job.id}">
                     <div class="job-header">
                         <h4 class="job-title">${audioFile.original_filename}</h4>
                         <div class="job-status status-${job.status}">
@@ -526,6 +540,208 @@ class MusicTabApp {
         }).join('');
 
         jobsList.innerHTML = jobsHtml;
+    }
+
+    showStatusUpdateSection() {
+        if (this.currentUser && this.transcriptionJobs.length > 0) {
+            document.querySelector('.status-update-section').style.display = 'block';
+        } else {
+            document.querySelector('.status-update-section').style.display = 'none';
+        }
+    }
+
+    updateJobSelect() {
+        const jobSelect = document.getElementById('jobSelect');
+
+        // Clear existing options except the first one
+        jobSelect.innerHTML = '<option value="">Choose a job...</option>';
+
+        // Add options for each transcription job
+        this.transcriptionJobs.forEach(job => {
+            const option = document.createElement('option');
+            option.value = job.id;
+            option.textContent = `${job.audio_files.original_filename} - ${job.target_instrument} (${job.status})`;
+            jobSelect.appendChild(option);
+        });
+
+        this.validateStatusUpdateForm();
+    }
+
+    validateStatusUpdateForm() {
+        const jobSelect = document.getElementById('jobSelect');
+        const statusSelect = document.getElementById('statusSelect');
+        const updateStatusBtn = document.getElementById('updateStatusBtn');
+
+        const isValid = jobSelect.value && statusSelect.value;
+        updateStatusBtn.disabled = !isValid;
+    }
+
+    async updateJobStatus() {
+        const jobId = document.getElementById('jobSelect').value;
+        const status = document.getElementById('statusSelect').value;
+        const progress = document.getElementById('progressInput').value;
+        const errorMessage = document.getElementById('errorInput').value;
+
+        if (!jobId || !status) {
+            this.showToast('Please select a job and status', 'error');
+            return;
+        }
+
+        const updateStatusBtn = document.getElementById('updateStatusBtn');
+
+        try {
+            updateStatusBtn.disabled = true;
+            updateStatusBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+
+            const updateData = { status };
+
+            if (progress !== '') {
+                updateData.progress_percentage = parseInt(progress);
+            }
+
+            if (errorMessage.trim()) {
+                updateData.error_message = errorMessage.trim();
+            }
+
+            const response = await fetch(`${this.apiBaseUrl}/api/transcription-jobs/${jobId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updateData)
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                this.showToast('Job status updated successfully!', 'success');
+
+                // Clear form
+                document.getElementById('jobSelect').value = '';
+                document.getElementById('statusSelect').value = '';
+                document.getElementById('progressInput').value = '';
+                document.getElementById('errorInput').value = '';
+
+                // Refresh jobs list and highlight updated job
+                await this.loadTranscriptionJobs();
+                this.highlightUpdatedJob(jobId);
+
+            } else {
+                throw new Error(data.message || 'Failed to update job status');
+            }
+        } catch (error) {
+            console.error('Job status update failed:', error);
+            this.showToast(`Failed to update status: ${error.message}`, 'error');
+        } finally {
+            updateStatusBtn.disabled = false;
+            updateStatusBtn.innerHTML = '<i class="fas fa-save"></i> Update Status';
+            this.validateStatusUpdateForm();
+        }
+    }
+
+    highlightUpdatedJob(jobId) {
+        // Find and highlight the updated job
+        const jobItems = document.querySelectorAll('.job-item');
+        jobItems.forEach(item => {
+            const jobIdInItem = item.dataset.jobId;
+            if (jobIdInItem === jobId) {
+                item.classList.add('job-updated');
+                setTimeout(() => {
+                    item.classList.remove('job-updated');
+                }, 3000);
+            }
+        });
+    }
+
+    async simulateProgress() {
+        const jobSelect = document.getElementById('jobSelect');
+        const simulateBtn = document.getElementById('simulateProgressBtn');
+
+        if (!jobSelect.value) {
+            this.showToast('Please select a job first', 'warning');
+            return;
+        }
+
+        const jobId = jobSelect.value;
+
+        try {
+            simulateBtn.disabled = true;
+            simulateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Simulating...';
+
+            // Start processing
+            await this.updateJobStatusDirect(jobId, { status: 'processing', progress_percentage: 0 });
+            this.showToast('Started progress simulation', 'info');
+
+            // Simulate progress updates
+            for (let progress = 10; progress <= 100; progress += 10) {
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+
+                const updateData = { progress_percentage: progress };
+                if (progress === 100) {
+                    updateData.status = 'completed';
+                }
+
+                await this.updateJobStatusDirect(jobId, updateData);
+                await this.loadTranscriptionJobs();
+
+                this.showToast(`Progress: ${progress}%`, 'info');
+            }
+
+            this.showToast('Progress simulation completed!', 'success');
+
+        } catch (error) {
+            console.error('Progress simulation failed:', error);
+            this.showToast(`Simulation failed: ${error.message}`, 'error');
+        } finally {
+            simulateBtn.disabled = false;
+            simulateBtn.innerHTML = '<i class="fas fa-play"></i> Simulate Progress';
+        }
+    }
+
+    async updateJobStatusDirect(jobId, updateData) {
+        const response = await fetch(`${this.apiBaseUrl}/api/transcription-jobs/${jobId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(updateData)
+        });
+
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.message || 'Failed to update job status');
+        }
+
+        return response.json();
+    }
+
+    toggleAutoRefresh() {
+        const autoRefreshBtn = document.getElementById('autoRefreshBtn');
+
+        if (this.isAutoRefreshing) {
+            // Stop auto refresh
+            clearInterval(this.autoRefreshInterval);
+            this.autoRefreshInterval = null;
+            this.isAutoRefreshing = false;
+
+            autoRefreshBtn.innerHTML = '<i class="fas fa-play"></i> Auto Refresh';
+            autoRefreshBtn.classList.remove('auto-refresh-active');
+            autoRefreshBtn.setAttribute('data-auto', 'false');
+
+            this.showToast('Auto refresh stopped', 'info');
+        } else {
+            // Start auto refresh
+            this.isAutoRefreshing = true;
+            this.autoRefreshInterval = setInterval(() => {
+                this.loadTranscriptionJobs();
+            }, 5000); // Refresh every 5 seconds
+
+            autoRefreshBtn.innerHTML = '<i class="fas fa-pause"></i> Stop Auto';
+            autoRefreshBtn.classList.add('auto-refresh-active');
+            autoRefreshBtn.setAttribute('data-auto', 'true');
+
+            this.showToast('Auto refresh started (5s interval)', 'success');
+        }
     }
 
     showToast(message, type = 'info') {

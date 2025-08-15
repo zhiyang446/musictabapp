@@ -15,6 +15,7 @@
     "dev": "concurrently \"npm run api:start\" \"npm run frontend:start\"",
     "test-frontend": "node scripts/test-frontend.js",
     "test-transcription": "node scripts/test-transcription-jobs.js",
+    "test-status-updates": "node scripts/test-status-updates.js",
     "test-frontend-dod": "node scripts/test-frontend-dod.js",
     "build": "echo 'Build scripts will be added in later tasks'",
     "test": "echo 'No tests yet - placeholder for future Jest tests'",

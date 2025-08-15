@@ -589,6 +589,248 @@ app.post('/api/transcription-jobs', async (req, res) => {
   }
 });
 
+// Update transcription job status
+app.put('/api/transcription-jobs/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      status,
+      progress_percentage,
+      error_message,
+      confidence_score,
+      started_at,
+      completed_at
+    } = req.body;
+
+    if (!id) {
+      return res.status(400).json({
+        error: 'Validation error',
+        message: 'Job ID is required'
+      });
+    }
+
+    // Validate status if provided
+    const validStatuses = ['pending', 'processing', 'completed', 'failed'];
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({
+        error: 'Invalid status',
+        message: `Status must be one of: ${validStatuses.join(', ')}`
+      });
+    }
+
+    // Validate progress_percentage if provided
+    if (progress_percentage !== undefined && (progress_percentage < 0 || progress_percentage > 100)) {
+      return res.status(400).json({
+        error: 'Invalid progress',
+        message: 'Progress percentage must be between 0 and 100'
+      });
+    }
+
+    // Check if transcription job exists
+    const { data: existingJob, error: fetchError } = await supabaseAdmin
+      .from('transcription_jobs')
+      .select(`
+        id,
+        status,
+        started_at,
+        completed_at,
+        audio_files!inner (
+          id,
+          users!inner (
+            id,
+            email
+          )
+        )
+      `)
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !existingJob) {
+      return res.status(404).json({
+        error: 'Job not found',
+        message: 'Transcription job not found'
+      });
+    }
+
+    // Prepare update data
+    const updateData = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (status !== undefined) {
+      updateData.status = status;
+
+      // Auto-set timestamps based on status
+      if (status === 'processing' && !started_at && !existingJob.started_at) {
+        updateData.started_at = new Date().toISOString();
+      }
+      if (status === 'completed' || status === 'failed') {
+        updateData.completed_at = new Date().toISOString();
+        // Ensure started_at is set if not already set
+        if (!existingJob.started_at) {
+          updateData.started_at = new Date().toISOString();
+        }
+        if (status === 'completed' && progress_percentage === undefined) {
+          updateData.progress_percentage = 100;
+        }
+      }
+    }
+
+    if (progress_percentage !== undefined) {
+      updateData.progress_percentage = progress_percentage;
+    }
+
+    if (error_message !== undefined) {
+      updateData.error_message = error_message;
+    }
+
+    if (confidence_score !== undefined) {
+      updateData.confidence_score = confidence_score;
+    }
+
+    if (started_at !== undefined) {
+      updateData.started_at = started_at;
+    }
+
+    if (completed_at !== undefined) {
+      updateData.completed_at = completed_at;
+    }
+
+    // Update the transcription job
+    const { data: updatedJob, error: updateError } = await supabaseAdmin
+      .from('transcription_jobs')
+      .update(updateData)
+      .eq('id', id)
+      .select(`
+        id,
+        audio_file_id,
+        target_instrument,
+        output_format,
+        status,
+        progress_percentage,
+        created_at,
+        updated_at,
+        started_at,
+        completed_at,
+        error_message,
+        confidence_score,
+        audio_files!inner (
+          id,
+          filename,
+          original_filename,
+          users!inner (
+            id,
+            email
+          )
+        )
+      `)
+      .single();
+
+    if (updateError) {
+      console.error('Transcription job update error:', updateError);
+      return res.status(500).json({
+        error: 'Failed to update transcription job',
+        message: updateError.message
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        id: updatedJob.id,
+        audio_file_id: updatedJob.audio_file_id,
+        target_instrument: updatedJob.target_instrument,
+        output_format: updatedJob.output_format,
+        status: updatedJob.status,
+        progress_percentage: updatedJob.progress_percentage,
+        created_at: updatedJob.created_at,
+        updated_at: updatedJob.updated_at,
+        started_at: updatedJob.started_at,
+        completed_at: updatedJob.completed_at,
+        error_message: updatedJob.error_message,
+        confidence_score: updatedJob.confidence_score
+      },
+      audio_file: {
+        filename: updatedJob.audio_files.filename,
+        original_filename: updatedJob.audio_files.original_filename,
+        user_email: updatedJob.audio_files.users.email
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Transcription job update endpoint error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message
+    });
+  }
+});
+
+// Get single transcription job by ID
+app.get('/api/transcription-jobs/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        error: 'Validation error',
+        message: 'Job ID is required'
+      });
+    }
+
+    const { data: job, error } = await supabaseAdmin
+      .from('transcription_jobs')
+      .select(`
+        id,
+        audio_file_id,
+        target_instrument,
+        output_format,
+        status,
+        progress_percentage,
+        created_at,
+        updated_at,
+        started_at,
+        completed_at,
+        error_message,
+        confidence_score,
+        audio_files!inner (
+          id,
+          filename,
+          original_filename,
+          file_size,
+          users!inner (
+            id,
+            email,
+            display_name
+          )
+        )
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error || !job) {
+      return res.status(404).json({
+        error: 'Job not found',
+        message: 'Transcription job not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: job,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Transcription job get endpoint error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message
+    });
+  }
+});
+
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({
