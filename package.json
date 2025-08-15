@@ -28,7 +28,9 @@
     "supabase": "npx supabase",
     "check-supabase": "node scripts/check-supabase-cli.js",
     "test-users-table": "node scripts/test-users-table.js",
-    "test-sql": "node scripts/test-sql-query.js"
+    "test-sql": "node scripts/test-sql-query.js",
+    "test-audio-files": "node scripts/test-audio-files-table.js",
+    "test-audio-files-dod": "node scripts/test-audio-files-dod.js"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.39.1",
