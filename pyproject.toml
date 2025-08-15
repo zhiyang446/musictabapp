@@ -24,7 +24,7 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
-target-version = "py313"
+target-version = "py312"
 line-length = 88
 select = [
     "E",  # pycodestyle errors
@@ -38,5 +38,5 @@ select = [
 ignore = []
 
 [tool.black]
-target-version = ['py313']
+target-version = ['py312']
 line-length = 88
