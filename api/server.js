@@ -7,6 +7,7 @@
 
 const express = require('express');
 const cors = require('cors');
+const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
 const path = require('path');
 const fs = require('fs');
@@ -51,6 +52,57 @@ const supabaseAdmin = createClient(config.supabaseUrl, config.supabaseServiceKey
 
 // Initialize Express app
 const app = express();
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(process.cwd(), 'uploads');
+    // Ensure upload directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    // Generate unique filename with timestamp
+    const timestamp = Date.now();
+    const ext = path.extname(file.originalname);
+    const name = path.basename(file.originalname, ext);
+    const sanitizedName = name.replace(/[^a-zA-Z0-9-_]/g, '_');
+    cb(null, `${timestamp}_${sanitizedName}${ext}`);
+  }
+});
+
+// File filter for audio files
+const fileFilter = (req, file, cb) => {
+  const allowedMimeTypes = [
+    'audio/mpeg',
+    'audio/mp3',
+    'audio/wav',
+    'audio/wave',
+    'audio/x-wav',
+    'audio/aac',
+    'audio/ogg',
+    'audio/flac',
+    'audio/m4a',
+    'audio/mp4'
+  ];
+
+  if (allowedMimeTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error(`Invalid file type. Only audio files are allowed. Received: ${file.mimetype}`), false);
+  }
+};
+
+const upload = multer({
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB limit
+    files: 1 // Only one file at a time
+  }
+});
 
 // Middleware
 app.use(cors());
@@ -251,6 +303,111 @@ app.post('/api/audio-files', async (req, res) => {
     res.status(500).json({
       error: 'Internal server error',
       message: error.message
+    });
+  }
+});
+
+// File upload endpoint
+app.post('/api/upload', upload.single('audio'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        error: 'No file uploaded',
+        message: 'Please select an audio file to upload',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const { user_id } = req.body;
+
+    if (!user_id) {
+      // Clean up uploaded file if user_id is missing
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({
+        error: 'Validation error',
+        message: 'user_id is required',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Verify user exists
+    const { data: user, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .eq('id', user_id)
+      .single();
+
+    if (userError || !user) {
+      // Clean up uploaded file if user doesn't exist
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({
+        error: 'Invalid user',
+        message: 'User not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Create audio file record in database
+    const audioFileData = {
+      user_id: user_id,
+      filename: req.file.filename,
+      original_filename: req.file.originalname,
+      file_size: req.file.size,
+      mime_type: req.file.mimetype,
+      storage_path: req.file.path,
+      upload_status: 'completed'
+    };
+
+    const { data: audioFile, error: audioError } = await supabaseAdmin
+      .from('audio_files')
+      .insert([audioFileData])
+      .select()
+      .single();
+
+    if (audioError) {
+      console.error('Audio file database error:', audioError);
+      // Clean up uploaded file if database insert fails
+      fs.unlinkSync(req.file.path);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to save file information',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Return success response with file information
+    res.status(201).json({
+      success: true,
+      message: 'File uploaded successfully',
+      data: {
+        id: audioFile.id,
+        filename: audioFile.filename,
+        original_filename: audioFile.original_filename,
+        file_size: audioFile.file_size,
+        mime_type: audioFile.mime_type,
+        upload_status: audioFile.upload_status,
+        created_at: audioFile.created_at
+      },
+      file_info: {
+        size_mb: (req.file.size / (1024 * 1024)).toFixed(2),
+        type: req.file.mimetype,
+        encoding: req.file.encoding
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Upload endpoint error:', error);
+
+    // Clean up uploaded file on error
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+
+    res.status(500).json({
+      error: 'Upload failed',
+      message: error.message,
+      timestamp: new Date().toISOString()
     });
   }
 });

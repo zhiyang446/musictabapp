@@ -103,6 +103,81 @@ Creates a new user.
 }
 ```
 
+### File Upload API
+
+#### Upload Audio File
+**POST** `/api/upload`
+
+Uploads an audio file and creates a database record.
+
+**Content-Type**: `multipart/form-data`
+
+**Form Fields:**
+- `audio` (file): Audio file to upload (required)
+- `user_id` (string): UUID of the user uploading the file (required)
+
+**Supported Audio Formats:**
+- MP3 (audio/mpeg, audio/mp3)
+- WAV (audio/wav, audio/wave, audio/x-wav)
+- AAC (audio/aac)
+- OGG (audio/ogg)
+- FLAC (audio/flac)
+- M4A (audio/m4a)
+- MP4 Audio (audio/mp4)
+
+**File Size Limit**: 50MB
+
+**Response (201):**
+```json
+{
+  "success": true,
+  "message": "File uploaded successfully",
+  "data": {
+    "id": "d37b1872-e5fa-4cd8-9a41-fe956c82ebd7",
+    "filename": "1755237773891_test-audio.wav",
+    "original_filename": "test-audio.wav",
+    "file_size": 88244,
+    "mime_type": "audio/wave",
+    "upload_status": "completed",
+    "created_at": "2025-08-15T06:02:53.901665+00:00"
+  },
+  "file_info": {
+    "size_mb": "0.08",
+    "type": "audio/wave"
+  },
+  "timestamp": "2025-08-15T06:02:53.905Z"
+}
+```
+
+**Error Responses:**
+
+**400 - No File:**
+```json
+{
+  "error": "No file uploaded",
+  "message": "Please select an audio file to upload",
+  "timestamp": "2025-08-15T06:02:53.905Z"
+}
+```
+
+**400 - Missing user_id:**
+```json
+{
+  "error": "Validation error",
+  "message": "user_id is required",
+  "timestamp": "2025-08-15T06:02:53.905Z"
+}
+```
+
+**400 - Invalid file type:**
+```json
+{
+  "error": "Upload failed",
+  "message": "Invalid file type. Only audio files are allowed. Received: image/jpeg",
+  "timestamp": "2025-08-15T06:02:53.905Z"
+}
+```
+
 ### Audio Files API
 
 #### Get All Audio Files
@@ -208,14 +283,20 @@ Creates a new audio file record.
 
 ### Run API Tests
 ```bash
-# Test all endpoints with Node.js
+# Test all basic endpoints
 npm run test-api
 
 # Test with curl commands
 npm run test-api-curl
 
-# Manual verification
-node scripts/test-api-manual.js
+# Test file upload functionality
+npm run test-upload
+
+# Test upload DoD requirements
+npm run test-upload-dod
+
+# Create test audio files
+npm run create-test-audio
 ```
 
 ### Manual Testing with curl
@@ -235,10 +316,15 @@ curl -X POST http://localhost:3001/api/users \
 # Get audio files
 curl http://localhost:3001/api/audio-files
 
-# Create audio file
+# Create audio file record
 curl -X POST http://localhost:3001/api/audio-files \
   -H "Content-Type: application/json" \
   -d '{"user_id":"USER_ID","filename":"test.mp3","original_filename":"Test.mp3","file_size":1000000}'
+
+# Upload audio file (requires multipart form data)
+curl -X POST http://localhost:3001/api/upload \
+  -F "audio=@path/to/your/audio.mp3" \
+  -F "user_id=USER_ID"
 ```
 
 ## Configuration
