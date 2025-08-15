@@ -23,7 +23,7 @@
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "ci": "npm run fmt:check && npm run lint:js && npm run lint:py && npm run test:js && npm run test:py",
+    "ci": "npm run format && npm run lint && npm run test",
     "make": "powershell -ExecutionPolicy Bypass -File ci.ps1",
     "check-env": "node scripts/check-env.js",
     "setup-env": "copy .env.example .env",
@@ -50,7 +50,8 @@
     "lint:js": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:py": "poetry run ruff check . || echo 'No Python files to check'",
     "test:js": "echo 'No JS tests configured yet'",
-    "test:py": "poetry run pytest || echo 'No Python tests found'"
+    "test:py": "poetry run pytest || echo 'No Python tests found'",
+    "ci": "npm run fmt:check && npm run lint:js && npm run lint:py && npm run test:js && npm run test:py"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.39.1",
@@ -64,10 +65,8 @@
     "@supabase/supabase-js": "^2.55.0",
     "concurrently": "^9.2.0",
     "cors": "^2.8.5",
-    "dotenv": "^17.2.1",
     "express": "^4.18.2",
     "form-data": "^4.0.4",
-    "multer": "^2.0.2",
-    "node-fetch": "^3.3.2"
+    "multer": "^2.0.2"
   }
 }
