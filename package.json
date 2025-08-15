@@ -30,7 +30,9 @@
     "test-users-table": "node scripts/test-users-table.js",
     "test-sql": "node scripts/test-sql-query.js",
     "test-audio-files": "node scripts/test-audio-files-table.js",
-    "test-audio-files-dod": "node scripts/test-audio-files-dod.js"
+    "test-audio-files-dod": "node scripts/test-audio-files-dod.js",
+    "test-transcription-jobs": "node scripts/test-transcription-jobs-table.js",
+    "test-transcription-jobs-dod": "node scripts/test-transcription-jobs-dod.js"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.39.1",
