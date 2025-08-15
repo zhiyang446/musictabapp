@@ -89,6 +89,61 @@
                 </div>
             </section>
 
+            <!-- Transcription Jobs Section -->
+            <section class="transcription-section">
+                <h2><i class="fas fa-music"></i> Create Transcription Job</h2>
+                <div class="transcription-form">
+                    <div class="form-group">
+                        <label for="audioFileSelect">Select Audio File:</label>
+                        <select id="audioFileSelect" class="form-select">
+                            <option value="">Choose an audio file...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="targetInstrument">Target Instrument:</label>
+                        <select id="targetInstrument" class="form-select">
+                            <option value="">Select instrument...</option>
+                            <option value="drums">Drums</option>
+                            <option value="bass">Bass</option>
+                            <option value="guitar">Guitar</option>
+                            <option value="piano">Piano</option>
+                            <option value="vocals">Vocals</option>
+                            <option value="mixed">Mixed</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="outputFormat">Output Format:</label>
+                        <select id="outputFormat" class="form-select">
+                            <option value="">Select format...</option>
+                            <option value="musicxml">MusicXML</option>
+                            <option value="midi">MIDI</option>
+                            <option value="pdf">PDF</option>
+                        </select>
+                    </div>
+                    <button id="createJobBtn" class="btn btn-primary" disabled>
+                        <i class="fas fa-plus"></i> Create Transcription Job
+                    </button>
+                </div>
+            </section>
+
+            <!-- Transcription Jobs List Section -->
+            <section class="jobs-section">
+                <h2><i class="fas fa-tasks"></i> Your Transcription Jobs</h2>
+                <div class="jobs-controls">
+                    <button id="refreshJobsBtn" class="btn btn-secondary">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                    <div class="jobs-count">
+                        <span id="jobsCount">0</span> jobs
+                    </div>
+                </div>
+                <div id="jobsList" class="jobs-list">
+                    <div class="loading" id="jobsLoading">
+                        <i class="fas fa-spinner fa-spin"></i> Loading jobs...
+                    </div>
+                </div>
+            </section>
+
             <!-- API Status Section -->
             <section class="status-section">
                 <h2><i class="fas fa-server"></i> API Status</h2>

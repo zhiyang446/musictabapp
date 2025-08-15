@@ -412,6 +412,183 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
   }
 });
 
+// Transcription jobs API endpoints
+app.get('/api/transcription-jobs', async (req, res) => {
+  try {
+    const { user_id, audio_file_id } = req.query;
+
+    let query = supabaseAdmin
+      .from('transcription_jobs')
+      .select(`
+        id,
+        audio_file_id,
+        status,
+        target_instrument,
+        output_format,
+        progress_percentage,
+        created_at,
+        updated_at,
+        started_at,
+        completed_at,
+        error_message,
+        confidence_score,
+        audio_files!inner (
+          id,
+          filename,
+          original_filename,
+          file_size,
+          users!inner (
+            id,
+            email,
+            display_name
+          )
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (user_id) {
+      query = query.eq('audio_files.user_id', user_id);
+    }
+
+    if (audio_file_id) {
+      query = query.eq('audio_file_id', audio_file_id);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Transcription jobs fetch error:', error);
+      return res.status(500).json({
+        error: 'Failed to fetch transcription jobs',
+        message: error.message
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: data,
+      count: data.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Transcription jobs endpoint error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message
+    });
+  }
+});
+
+app.post('/api/transcription-jobs', async (req, res) => {
+  try {
+    const { audio_file_id, target_instrument, output_format } = req.body;
+
+    if (!audio_file_id || !target_instrument || !output_format) {
+      return res.status(400).json({
+        error: 'Validation error',
+        message: 'audio_file_id, target_instrument, and output_format are required'
+      });
+    }
+
+    // Verify audio file exists and get user info
+    const { data: audioFile, error: audioError } = await supabaseAdmin
+      .from('audio_files')
+      .select(`
+        id,
+        user_id,
+        filename,
+        original_filename,
+        upload_status,
+        users!inner (
+          id,
+          email
+        )
+      `)
+      .eq('id', audio_file_id)
+      .single();
+
+    if (audioError || !audioFile) {
+      return res.status(400).json({
+        error: 'Invalid audio file',
+        message: 'Audio file not found'
+      });
+    }
+
+    if (audioFile.upload_status !== 'completed') {
+      return res.status(400).json({
+        error: 'Invalid audio file status',
+        message: 'Audio file must be fully uploaded before creating transcription job'
+      });
+    }
+
+    // Validate target instrument
+    const validInstruments = ['drums', 'bass', 'guitar', 'piano', 'vocals', 'mixed'];
+    if (!validInstruments.includes(target_instrument)) {
+      return res.status(400).json({
+        error: 'Invalid target instrument',
+        message: `Target instrument must be one of: ${validInstruments.join(', ')}`
+      });
+    }
+
+    // Validate output format
+    const validFormats = ['musicxml', 'midi', 'pdf'];
+    if (!validFormats.includes(output_format)) {
+      return res.status(400).json({
+        error: 'Invalid output format',
+        message: `Output format must be one of: ${validFormats.join(', ')}`
+      });
+    }
+
+    const transcriptionJobData = {
+      audio_file_id,
+      target_instrument,
+      output_format,
+      status: 'pending',
+      progress_percentage: 0
+    };
+
+    const { data: transcriptionJob, error: jobError } = await supabaseAdmin
+      .from('transcription_jobs')
+      .insert([transcriptionJobData])
+      .select()
+      .single();
+
+    if (jobError) {
+      console.error('Transcription job creation error:', jobError);
+      return res.status(500).json({
+        error: 'Failed to create transcription job',
+        message: jobError.message
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      data: {
+        id: transcriptionJob.id,
+        audio_file_id: transcriptionJob.audio_file_id,
+        target_instrument: transcriptionJob.target_instrument,
+        output_format: transcriptionJob.output_format,
+        status: transcriptionJob.status,
+        progress_percentage: transcriptionJob.progress_percentage,
+        created_at: transcriptionJob.created_at
+      },
+      audio_file: {
+        filename: audioFile.filename,
+        original_filename: audioFile.original_filename,
+        user_email: audioFile.users.email
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Transcription job creation endpoint error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message
+    });
+  }
+});
+
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({
