@@ -32,7 +32,11 @@
     "test-audio-files": "node scripts/test-audio-files-table.js",
     "test-audio-files-dod": "node scripts/test-audio-files-dod.js",
     "test-transcription-jobs": "node scripts/test-transcription-jobs-table.js",
-    "test-transcription-jobs-dod": "node scripts/test-transcription-jobs-dod.js"
+    "test-transcription-jobs-dod": "node scripts/test-transcription-jobs-dod.js",
+    "api:start": "node api/server.js",
+    "api:dev": "nodemon api/server.js",
+    "test-api": "node scripts/test-api-endpoints.js",
+    "test-api-curl": "node scripts/test-api-curl.js"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.39.1",
@@ -43,6 +47,8 @@
   },
   "packageManager": "npm@9.8.1",
   "dependencies": {
-    "@supabase/supabase-js": "^2.55.0"
+    "@supabase/supabase-js": "^2.55.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
   }
 }
