@@ -24,7 +24,9 @@
     "check-env": "node scripts/check-env.js",
     "setup-env": "copy .env.example .env",
     "test-supabase": "node scripts/test-supabase.js",
-    "test-supabase-http": "powershell -ExecutionPolicy Bypass -File scripts/test-supabase-curl.ps1"
+    "test-supabase-http": "powershell -ExecutionPolicy Bypass -File scripts/test-supabase-curl.ps1",
+    "supabase": "npx supabase",
+    "check-supabase": "node scripts/check-supabase-cli.js"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.39.1",
