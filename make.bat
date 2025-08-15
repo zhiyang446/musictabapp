@@ -5,6 +5,7 @@ if "%1"=="" goto help
 if "%1"=="help" goto help
 if "%1"=="install" goto install
 if "%1"=="fmt" goto fmt
+if "%1"=="fmt-check" goto fmt-check
 if "%1"=="lint" goto lint
 if "%1"=="test" goto test
 if "%1"=="ci" goto ci
@@ -14,13 +15,22 @@ echo Unknown command: %1
 goto help
 
 :help
-echo Available commands:
-echo   install  - Install all dependencies (Node.js + Python)
-echo   fmt      - Format all code (Prettier + Black)
-echo   lint     - Lint all code (ESLint + Ruff)
-echo   test     - Run all tests (Jest + Pytest)
-echo   ci       - Run full CI pipeline (fmt + lint + test)
-echo   clean    - Clean build artifacts and dependencies
+echo Music Tab App - Available Commands:
+echo.
+echo Setup:
+echo   install     Install all dependencies (Node.js + Python)
+echo.
+echo Code Quality:
+echo   fmt         Format all code (Prettier + Black + isort)
+echo   fmt-check   Check code formatting without changes
+echo   lint        Run all linters (ESLint + ruff + mypy)
+echo   test        Run all tests (JavaScript + Python)
+echo.
+echo CI/CD:
+echo   ci          Run complete CI pipeline (fmt-check + lint + test)
+echo.
+echo Cleanup:
+echo   clean       Clean build artifacts and caches
 echo.
 echo Usage: make.bat ^<command^>
 goto end
@@ -36,45 +46,57 @@ echo Dependencies installed successfully!
 goto end
 
 :fmt
-echo Formatting JavaScript/TypeScript code...
-call npm run format
+echo 🎨 Formatting code...
+call npm run fmt
 if errorlevel 1 exit /b 1
-echo Formatting Python code...
-call poetry run black .
+echo ✅ Code formatting complete
+goto end
+
+:fmt-check
+echo 🔍 Checking code formatting...
+call npm run fmt:check
 if errorlevel 1 exit /b 1
-echo Code formatting completed!
+echo ✅ Code formatting check complete
 goto end
 
 :lint
-echo Linting JavaScript/TypeScript code...
-call npm run lint
+echo 🔍 Running linters...
+echo   → ESLint (JavaScript/TypeScript)
+call npm run lint:js
 if errorlevel 1 exit /b 1
-echo Linting Python code...
-call poetry run ruff check .
+echo   → ruff (Python)
+call npm run lint:py
 if errorlevel 1 exit /b 1
-echo Code linting completed!
+echo ✅ Linting complete
 goto end
 
 :test
-echo Running JavaScript/TypeScript tests...
-call npm run test
+echo 🧪 Running tests...
+echo   → JavaScript tests
+call npm run test:js
 if errorlevel 1 exit /b 1
-echo Running Python tests...
-call poetry run pytest --tb=short -q
-REM pytest returns 5 when no tests are collected, which is OK for now
-if errorlevel 1 if not errorlevel 6 exit /b 1
-echo All tests completed!
+echo   → Python tests
+call npm run test:py
+if errorlevel 1 exit /b 1
+echo ✅ Testing complete
 goto end
 
 :ci
-echo Starting CI pipeline...
-call make.bat fmt
+echo 🚀 Running CI pipeline...
+echo.
+echo Step 1/3: Code formatting check
+call make.bat fmt-check
 if errorlevel 1 exit /b 1
+echo.
+echo Step 2/3: Linting
 call make.bat lint
 if errorlevel 1 exit /b 1
+echo.
+echo Step 3/3: Testing
 call make.bat test
 if errorlevel 1 exit /b 1
-echo ✅ CI pipeline completed successfully!
+echo.
+echo 🎉 CI pipeline completed successfully!
 goto end
 
 :clean
