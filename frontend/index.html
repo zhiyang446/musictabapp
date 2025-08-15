@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Tab App - Audio Transcription</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-music"></i> Music Tab App</h1>
+                <p>Transform your audio into musical notation</p>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- User Section -->
+            <section class="user-section">
+                <h2><i class="fas fa-user"></i> User Profile</h2>
+                <div class="user-form">
+                    <div class="form-group">
+                        <label for="userEmail">Email:</label>
+                        <input type="email" id="userEmail" placeholder="Enter your email">
+                    </div>
+                    <div class="form-group">
+                        <label for="displayName">Display Name:</label>
+                        <input type="text" id="displayName" placeholder="Enter your name">
+                    </div>
+                    <button id="createUserBtn" class="btn btn-primary">
+                        <i class="fas fa-user-plus"></i> Create User
+                    </button>
+                </div>
+                <div id="userInfo" class="user-info" style="display: none;">
+                    <h3>Current User</h3>
+                    <p><strong>ID:</strong> <span id="currentUserId"></span></p>
+                    <p><strong>Email:</strong> <span id="currentUserEmail"></span></p>
+                    <p><strong>Name:</strong> <span id="currentUserName"></span></p>
+                </div>
+            </section>
+
+            <!-- File Upload Section -->
+            <section class="upload-section">
+                <h2><i class="fas fa-cloud-upload-alt"></i> Upload Audio File</h2>
+                <div class="upload-form">
+                    <div class="file-input-wrapper">
+                        <input type="file" id="audioFile" accept="audio/*" class="file-input">
+                        <label for="audioFile" class="file-input-label">
+                            <i class="fas fa-file-audio"></i>
+                            <span>Choose Audio File</span>
+                        </label>
+                    </div>
+                    <div class="file-info" id="fileInfo" style="display: none;">
+                        <p><strong>Selected:</strong> <span id="fileName"></span></p>
+                        <p><strong>Size:</strong> <span id="fileSize"></span></p>
+                        <p><strong>Type:</strong> <span id="fileType"></span></p>
+                    </div>
+                    <button id="uploadBtn" class="btn btn-success" disabled>
+                        <i class="fas fa-upload"></i> Upload File
+                    </button>
+                </div>
+                <div id="uploadProgress" class="upload-progress" style="display: none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <p id="progressText">Uploading...</p>
+                </div>
+            </section>
+
+            <!-- File List Section -->
+            <section class="files-section">
+                <h2><i class="fas fa-list"></i> Your Audio Files</h2>
+                <div class="files-controls">
+                    <button id="refreshFilesBtn" class="btn btn-secondary">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                    <div class="files-count">
+                        <span id="filesCount">0</span> files
+                    </div>
+                </div>
+                <div id="filesList" class="files-list">
+                    <div class="loading" id="filesLoading">
+                        <i class="fas fa-spinner fa-spin"></i> Loading files...
+                    </div>
+                </div>
+            </section>
+
+            <!-- API Status Section -->
+            <section class="status-section">
+                <h2><i class="fas fa-server"></i> API Status</h2>
+                <div id="apiStatus" class="api-status">
+                    <div class="status-item">
+                        <span class="status-label">API Server:</span>
+                        <span id="apiServerStatus" class="status-value">Checking...</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Database:</span>
+                        <span id="databaseStatus" class="status-value">Checking...</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Last Updated:</span>
+                        <span id="lastUpdated" class="status-value">Never</span>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>&copy; 2025 Music Tab App. Transform audio into musical notation.</p>
+        </footer>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="app.js"></script>
+</body>
+</html>
