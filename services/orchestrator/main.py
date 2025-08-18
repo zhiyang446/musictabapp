@@ -111,11 +111,13 @@ async def create_upload_url(
         # Create signed upload URL (expires in 1 hour)
         response = supabase.storage.from_("audio-input").create_signed_upload_url(storage_path)
 
-        if not response.get("signedURL"):
+        # Supabase returns 'signedUrl' (lowercase 'u')
+        signed_url = response.get("signedUrl") or response.get("signedURL")
+        if not signed_url:
             raise HTTPException(status_code=500, detail="Failed to create upload URL")
 
         return UploadUrlResponse(
-            url=response["signedURL"],
+            url=signed_url,
             storagePath=storage_path
         )
 
