@@ -103,8 +103,45 @@ function testT35() {
             console.log(`   T35 update: ${hasT35Update ? '✅' : '❌'}`);
         }
         
-        // Step 6: Verify T35 DoD
-        console.log('\nStep 6: Verifying T35 DoD...');
+        // Step 6: Check Android configuration
+        console.log('\nStep 6: Checking Android configuration...');
+
+        const appJsonPath = path.join(mobileAppPath, 'app.json');
+
+        if (fs.existsSync(appJsonPath)) {
+            const appJsonContent = fs.readFileSync(appJsonPath, 'utf8');
+            const appJson = JSON.parse(appJsonContent);
+
+            const hasScheme = appJson.expo && appJson.expo.scheme;
+            const hasAndroidPackage = appJson.expo && appJson.expo.android && appJson.expo.android.package;
+            const hasIntentFilters = appJson.expo && appJson.expo.android && appJson.expo.android.intentFilters;
+            const hasDevClient = appJson.expo && appJson.expo.plugins && appJson.expo.plugins.includes('expo-dev-client');
+
+            console.log(`   App scheme: ${hasScheme ? '✅' : '❌'}`);
+            console.log(`   Android package: ${hasAndroidPackage ? '✅' : '❌'}`);
+            console.log(`   Intent filters: ${hasIntentFilters ? '✅' : '❌'}`);
+            console.log(`   Dev client plugin: ${hasDevClient ? '✅' : '❌'}`);
+        }
+
+        // Step 7: Check auth callback page
+        console.log('\nStep 7: Checking auth callback page...');
+
+        const callbackPath = path.join(mobileAppPath, 'app', 'auth', 'callback.js');
+        const hasCallbackPage = fs.existsSync(callbackPath);
+
+        console.log(`   auth/callback.js: ${hasCallbackPage ? '✅' : '❌'}`);
+
+        if (hasCallbackPage) {
+            const callbackContent = fs.readFileSync(callbackPath, 'utf8');
+            const hasCallbackLogic = callbackContent.includes('handleAuthCallback');
+            const hasRedirectLogic = callbackContent.includes('router.replace');
+
+            console.log(`   Callback logic: ${hasCallbackLogic ? '✅' : '❌'}`);
+            console.log(`   Redirect logic: ${hasRedirectLogic ? '✅' : '❌'}`);
+        }
+
+        // Step 8: Verify T35 DoD
+        console.log('\nStep 8: Verifying T35 DoD...');
         console.log('   Target: Implement login/logout UI');
         console.log('   DoD: Login gets access_token');
         console.log('   Test: Refresh preserves session');
@@ -126,8 +163,8 @@ function testT35() {
             console.log('   Some implementation checks failed');
         }
         
-        // Step 7: Testing instructions
-        console.log('\nStep 7: Testing Instructions...');
+        // Step 9: Testing instructions
+        console.log('\nStep 9: Testing Instructions...');
         console.log('   To verify T35 DoD:');
         console.log('   1. cd apps/mobile && npm start');
         console.log('   2. Press "w" for web version');
@@ -138,6 +175,10 @@ function testT35() {
         console.log('      - "📋 T35 DoD Check - access_token: PRESENT"');
         console.log('   6. Refresh page and verify session persists');
         console.log('   7. Test sign out functionality');
+        console.log('   8. For Android testing:');
+        console.log('      - Install Expo Go app or build dev client');
+        console.log('      - Scan QR code to test on device');
+        console.log('      - Test deep links and magic links');
         
         console.log('\n🎉 T35 Test completed!');
         
@@ -160,6 +201,9 @@ function testT35() {
         console.log('   • Access token management');
         console.log('   • Form validation and error handling');
         console.log('   • Responsive UI design');
+        console.log('   • Android deep link configuration');
+        console.log('   • Magic link callback handling');
+        console.log('   • Development build support');
         
     } catch (error) {
         console.error('❌ T35 test failed:', error.message);

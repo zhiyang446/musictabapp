@@ -68,7 +68,7 @@ export default function LoginScreen() {
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: 'musictabapp://login',
+          emailRedirectTo: 'musictabapp://auth/callback',
         },
       });
 

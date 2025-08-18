@@ -31,6 +31,19 @@ export default function RootLayout() {
             },
           }}
         />
+        <Stack.Screen
+          name="auth/callback"
+          options={{
+            title: 'Authenticating...',
+            headerStyle: {
+              backgroundColor: '#f5f5f5',
+            },
+            headerTintColor: '#333',
+            headerTitleStyle: {
+              fontWeight: 'bold',
+            },
+          }}
+        />
       </Stack>
     </AuthProvider>
   );
