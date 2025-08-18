@@ -24,6 +24,16 @@ class UploadUrlResponse(BaseModel):
     url: str
     storagePath: str
 
+class CreateJobRequest(BaseModel):
+    source_type: str  # 'upload' | 'youtube'
+    source_object_path: str = None  # Storage path for upload mode
+    youtube_url: str = None  # URL for youtube mode
+    instruments: list[str]  # ['drums','bass','guitar','piano','chords']
+    options: dict = {}  # Additional options
+
+class CreateJobResponse(BaseModel):
+    jobId: str
+
 # Create FastAPI app
 app = FastAPI(
     title="Music Transcription Orchestrator",
@@ -124,6 +134,58 @@ async def create_upload_url(
     except Exception as e:
         print(f"Upload URL creation error: {e}")
         raise HTTPException(status_code=500, detail="Failed to create upload URL")
+
+@app.post("/jobs", response_model=CreateJobResponse)
+async def create_job(
+    request: CreateJobRequest,
+    current_request: Request,
+    _: str = Depends(jwt_bearer)
+) -> CreateJobResponse:
+    """Create a new transcription job"""
+    user_id = get_current_user_id(current_request)
+
+    # Validate request
+    if request.source_type not in ['upload', 'youtube']:
+        raise HTTPException(status_code=400, detail="source_type must be 'upload' or 'youtube'")
+
+    if request.source_type == 'upload' and not request.source_object_path:
+        raise HTTPException(status_code=400, detail="source_object_path required for upload mode")
+
+    if request.source_type == 'youtube' and not request.youtube_url:
+        raise HTTPException(status_code=400, detail="youtube_url required for youtube mode")
+
+    if not request.instruments or len(request.instruments) == 0:
+        raise HTTPException(status_code=400, detail="At least one instrument must be specified")
+
+    try:
+        # Get Supabase client
+        supabase = db_client.get_supabase_client()
+
+        # Create job record
+        job_data = {
+            "user_id": user_id,
+            "source_type": request.source_type,
+            "source_object_path": request.source_object_path,
+            "youtube_url": request.youtube_url,
+            "instruments": request.instruments,
+            "options": request.options,
+            "status": "PENDING",
+            "progress": 0
+        }
+
+        # Insert job into database
+        response = supabase.table("jobs").insert(job_data).execute()
+
+        if not response.data or len(response.data) == 0:
+            raise HTTPException(status_code=500, detail="Failed to create job")
+
+        job_id = response.data[0]["id"]
+
+        return CreateJobResponse(jobId=job_id)
+
+    except Exception as e:
+        print(f"Job creation error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create job")
 
 if __name__ == "__main__":
     import uvicorn
