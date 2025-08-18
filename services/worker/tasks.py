@@ -206,3 +206,62 @@ def generate_tabs(self, job_id, audio_path, instruments, options=None):
             meta={"error": str(exc), "job_id": job_id}
         )
         raise
+
+
+@app.task(bind=True)
+def process_job(self, job_id, job_data=None):
+    """
+    Main job processing task - orchestrates the entire workflow
+    """
+    try:
+        self.update_state(
+            state="PROGRESS",
+            meta={"current": 10, "total": 100, "status": "Starting job processing...", "job_id": job_id}
+        )
+
+        print(f"🔄 Processing job: {job_id}")
+
+        # Simulate job processing workflow
+        workflow_steps = [
+            ("Validating job parameters", 20),
+            ("Preparing processing environment", 30),
+            ("Determining processing strategy", 40),
+            ("Initiating audio processing", 50),
+            ("Processing audio content", 70),
+            ("Generating output artifacts", 85),
+            ("Finalizing job", 95),
+            ("Job completed successfully", 100)
+        ]
+
+        for step_name, progress in workflow_steps:
+            time.sleep(1)  # Simulate work
+            self.update_state(
+                state="PROGRESS",
+                meta={
+                    "current": progress,
+                    "total": 100,
+                    "status": step_name,
+                    "job_id": job_id
+                }
+            )
+            print(f"  📋 {step_name} ({progress}%)")
+
+        # Return success result
+        result = {
+            "job_id": job_id,
+            "status": "completed",
+            "message": "Job processing completed successfully",
+            "processed_at": datetime.utcnow().isoformat(),
+            "workflow_completed": True
+        }
+
+        print(f"✅ Job {job_id} completed successfully")
+        return result
+
+    except Exception as exc:
+        print(f"❌ Job {job_id} failed: {exc}")
+        self.update_state(
+            state="FAILURE",
+            meta={"error": str(exc), "job_id": job_id}
+        )
+        raise

@@ -16,5 +16,6 @@ dependencies = [
     "asyncpg>=0.29.0",
     "pyjwt>=2.8.0",
     "cryptography>=41.0.0",
+    "celery[redis]>=5.3.0",
 ]
 requires-python = ">=3.9"

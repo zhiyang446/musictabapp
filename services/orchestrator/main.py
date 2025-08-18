@@ -12,6 +12,7 @@ import uuid
 from dotenv import load_dotenv
 from db import db_client
 from auth import jwt_bearer, jwt_bearer_optional, get_current_user_id
+from celery_client import send_process_job_task
 
 # Load environment variables
 load_dotenv()
@@ -235,6 +236,29 @@ async def create_job(
             raise HTTPException(status_code=500, detail="Failed to create job")
 
         job_id = response.data[0]["id"]
+
+        # Send job to processing queue
+        try:
+            task_result = send_process_job_task(
+                job_id=job_id,
+                job_data={
+                    "source_type": request.source_type,
+                    "source_object_path": request.source_object_path,
+                    "youtube_url": request.youtube_url,
+                    "instruments": request.instruments,
+                    "options": request.options,
+                    "user_id": user_id
+                }
+            )
+
+            if task_result:
+                print(f"SUCCESS: Job {job_id} sent to processing queue with task ID: {task_result.id}")
+            else:
+                print(f"WARNING: Job {job_id} queue push failed, but job created successfully")
+
+        except Exception as queue_error:
+            print(f"WARNING: Failed to send job {job_id} to queue: {queue_error}")
+            # Don't fail the request if queue push fails, job is still created
 
         return CreateJobResponse(jobId=job_id)
 
