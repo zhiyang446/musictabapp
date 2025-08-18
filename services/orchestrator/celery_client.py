@@ -37,7 +37,7 @@ celery_client.conf.update(
         "tasks.download_youtube": {"queue": "youtube_download"},
         "tasks.generate_tabs": {"queue": "tab_generation"},
         "tasks.test_task": {"queue": "default"},
-        "tasks.process_job": {"queue": "job_processing"},
+        "tasks.process_job": {"queue": "default"},
     },
     # Don't start worker, just send tasks
     worker_hijack_root_logger=False,
@@ -61,7 +61,7 @@ def send_process_job_task(job_id: str, job_data: dict = None):
             "tasks.process_job",
             args=[job_id],
             kwargs={"job_data": job_data} if job_data else {},
-            queue="job_processing",
+            queue="default",
             # Don't wait for result, just send
             ignore_result=True
         )

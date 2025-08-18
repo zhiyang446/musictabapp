@@ -36,6 +36,7 @@ task_routes = {
     "tasks.download_youtube": {"queue": "youtube_download"},
     "tasks.generate_tabs": {"queue": "tab_generation"},
     "tasks.test_task": {"queue": "default"},
+    "tasks.process_job": {"queue": "default"},
 }
 
 # Worker settings

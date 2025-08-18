@@ -14,8 +14,11 @@ app = Celery("musictabapp-worker")
 # Load configuration from celeryconfig.py
 app.config_from_object("celeryconfig")
 
+# Import tasks manually to ensure they are registered
+import tasks
+
 # Auto-discover tasks
-app.autodiscover_tasks(["tasks"])
+app.autodiscover_tasks()
 
 if __name__ == "__main__":
     app.start()
