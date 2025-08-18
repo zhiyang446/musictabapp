@@ -1,12 +1,14 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
-import { Link } from 'expo-router';
+import { StyleSheet, Text, View, TouchableOpacity, Alert } from 'react-native';
+import { Link, router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { testConnection } from '../supabase/client';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function HomeScreen() {
   const [connectionStatus, setConnectionStatus] = useState('Testing...');
   const [sessionStatus, setSessionStatus] = useState('Unknown');
+  const { user, session, loading, signOut, isAuthenticated } = useAuth();
 
   useEffect(() => {
     // Test Supabase connection on component mount
@@ -30,6 +32,29 @@ export default function HomeScreen() {
     runConnectionTest();
   }, []);
 
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      Alert.alert('Success', 'You have been signed out');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to sign out');
+    }
+  };
+
+  const navigateToLogin = () => {
+    router.push('/login');
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>🎵 Music Tab App</Text>
+        <Text style={styles.subtitle}>Loading...</Text>
+        <StatusBar style="auto" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>🎵 Music Tab App</Text>
@@ -40,22 +65,50 @@ export default function HomeScreen() {
       </Text>
 
       <View style={styles.statusContainer}>
-        <Text style={styles.statusTitle}>T34 - Supabase Integration</Text>
+        <Text style={styles.statusTitle}>T35 - Authentication Status</Text>
         <Text style={styles.statusText}>Connection: {connectionStatus}</Text>
-        <Text style={styles.statusText}>Session: {sessionStatus}</Text>
+        <Text style={styles.statusText}>
+          User: {isAuthenticated ? `${user?.email}` : 'Not signed in'}
+        </Text>
+        <Text style={styles.statusText}>
+          Session: {isAuthenticated ? 'Authenticated ✅' : 'Anonymous'}
+        </Text>
+        {isAuthenticated && session?.access_token && (
+          <Text style={styles.statusText}>
+            Access Token: Present ✅
+          </Text>
+        )}
       </View>
 
       <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.button}>
-          <Text style={styles.buttonText}>Upload Audio</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.button}>
-          <Text style={styles.buttonText}>Browse Library</Text>
-        </TouchableOpacity>
+        {isAuthenticated ? (
+          <>
+            <TouchableOpacity style={styles.button}>
+              <Text style={styles.buttonText}>Upload Audio</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.button}>
+              <Text style={styles.buttonText}>Browse Library</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.button, styles.signOutButton]}
+              onPress={handleSignOut}
+            >
+              <Text style={styles.signOutButtonText}>Sign Out</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <TouchableOpacity
+            style={styles.button}
+            onPress={navigateToLogin}
+          >
+            <Text style={styles.buttonText}>Sign In</Text>
+          </TouchableOpacity>
+        )}
       </View>
       
-      <Text style={styles.version}>T34 - Supabase Client Integrated</Text>
+      <Text style={styles.version}>T35 - Authentication Integrated</Text>
       <StatusBar style="auto" />
     </View>
   );
@@ -130,5 +183,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#999',
     fontStyle: 'italic',
+  },
+  signOutButton: {
+    backgroundColor: '#FF3B30',
+  },
+  signOutButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
