@@ -20,7 +20,7 @@ class SupabaseJWTBearer(HTTPBearer):
         super().__init__(auto_error=auto_error)
         self.supabase_url = os.getenv("SUPABASE_URL")
         self.supabase_anon_key = os.getenv("SUPABASE_ANON_KEY")
-        self.jwt_secret = os.getenv("SUPABASE_JWT_SECRET")
+        self.jwt_secret = os.getenv("SUPABASE_JWT_SECRET") or os.getenv("JWT_SECRET")
         
         if not all([self.supabase_url, self.supabase_anon_key]):
             raise ValueError("Missing Supabase configuration")
