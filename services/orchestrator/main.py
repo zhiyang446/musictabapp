@@ -69,6 +69,20 @@ class JobDetailResponse(BaseModel):
     started_at: Optional[str]
     completed_at: Optional[str]
 
+class ArtifactItem(BaseModel):
+    id: str
+    job_id: str
+    kind: str  # 'midi', 'musicxml', 'pdf', 'preview'
+    instrument: Optional[str]
+    storage_path: str
+    bytes: Optional[int]
+    created_at: str
+
+class JobArtifactsResponse(BaseModel):
+    job_id: str
+    artifacts: List[ArtifactItem]
+    total: int
+
 # Create FastAPI app
 app = FastAPI(
     title="Music Transcription Orchestrator",
@@ -359,6 +373,60 @@ async def get_job_detail(
     except Exception as e:
         print(f"Get job detail error: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve job details")
+
+@app.get("/jobs/{job_id}/artifacts", response_model=JobArtifactsResponse)
+async def get_job_artifacts(
+    job_id: str,
+    current_request: Request,
+    _: str = Depends(jwt_bearer)
+) -> JobArtifactsResponse:
+    """Get artifacts for a specific job"""
+    user_id = get_current_user_id(current_request)
+
+    try:
+        # Get Supabase client
+        supabase = db_client.get_supabase_client()
+
+        # First, verify the job exists and belongs to the user
+        job_response = supabase.table("jobs").select("id, user_id").eq("id", job_id).execute()
+
+        if not job_response.data or len(job_response.data) == 0:
+            raise HTTPException(status_code=404, detail="Job not found")
+
+        job = job_response.data[0]
+
+        # Check if the job belongs to the current user
+        if job["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Access denied: Job belongs to another user")
+
+        # Query artifacts for this job
+        artifacts_response = supabase.table("artifacts").select("*").eq("job_id", job_id).order("created_at", desc=True).execute()
+
+        artifacts = []
+        if artifacts_response.data:
+            for artifact in artifacts_response.data:
+                artifacts.append(ArtifactItem(
+                    id=artifact["id"],
+                    job_id=artifact["job_id"],
+                    kind=artifact["kind"],
+                    instrument=artifact.get("instrument"),
+                    storage_path=artifact["storage_path"],
+                    bytes=artifact.get("bytes"),
+                    created_at=artifact["created_at"]
+                ))
+
+        return JobArtifactsResponse(
+            job_id=job_id,
+            artifacts=artifacts,
+            total=len(artifacts)
+        )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions (404, 403)
+        raise
+    except Exception as e:
+        print(f"Get job artifacts error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve job artifacts")
 
 if __name__ == "__main__":
     import uvicorn
