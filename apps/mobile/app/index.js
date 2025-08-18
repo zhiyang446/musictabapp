@@ -1,17 +1,50 @@
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { Link } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { testConnection } from '../supabase/client';
 
 export default function HomeScreen() {
+  const [connectionStatus, setConnectionStatus] = useState('Testing...');
+  const [sessionStatus, setSessionStatus] = useState('Unknown');
+
+  useEffect(() => {
+    // Test Supabase connection on component mount
+    const runConnectionTest = async () => {
+      console.log('🚀 T34: Starting Supabase connection test...');
+
+      const result = await testConnection();
+
+      if (result.success) {
+        setConnectionStatus('✅ Connected');
+        setSessionStatus(result.session ? 'Authenticated' : 'Anonymous (null)');
+
+        // T34 DoD: Console should print session:null
+        console.log('📋 T34 DoD Check - session:', result.session);
+      } else {
+        setConnectionStatus('❌ Failed');
+        setSessionStatus('Error');
+      }
+    };
+
+    runConnectionTest();
+  }, []);
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>🎵 Music Tab App</Text>
       <Text style={styles.subtitle}>Transform your music into tabs</Text>
       <Text style={styles.description}>
-        Welcome to the Music Tab App! This app will help you convert audio files 
+        Welcome to the Music Tab App! This app will help you convert audio files
         into musical notation and tablature.
       </Text>
-      
+
+      <View style={styles.statusContainer}>
+        <Text style={styles.statusTitle}>T34 - Supabase Integration</Text>
+        <Text style={styles.statusText}>Connection: {connectionStatus}</Text>
+        <Text style={styles.statusText}>Session: {sessionStatus}</Text>
+      </View>
+
       <View style={styles.buttonContainer}>
         <TouchableOpacity style={styles.button}>
           <Text style={styles.buttonText}>Upload Audio</Text>
@@ -22,7 +55,7 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
       
-      <Text style={styles.version}>T33 - Expo Router Initialized</Text>
+      <Text style={styles.version}>T34 - Supabase Client Integrated</Text>
       <StatusBar style="auto" />
     </View>
   );
@@ -54,7 +87,27 @@ const styles = StyleSheet.create({
     color: '#777',
     textAlign: 'center',
     lineHeight: 24,
-    marginBottom: 30,
+    marginBottom: 20,
+  },
+  statusContainer: {
+    backgroundColor: '#f0f0f0',
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 20,
+    width: '100%',
+  },
+  statusTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  statusText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+    textAlign: 'center',
   },
   buttonContainer: {
     width: '100%',
