@@ -264,17 +264,42 @@ def process_job(job_id, job_data=None):
 
         print(f"✅ Job {job_id} status updated to SUCCEEDED")
 
+        # Step 4: Create placeholder artifact (T31)
+        print(f"📋 Creating placeholder artifact for job {job_id}")
+
+        import uuid
+        artifact_id = str(uuid.uuid4())
+        storage_path = f"artifacts/{job_id}/placeholder.txt"
+
+        # Create placeholder artifact record
+        artifact_data = {
+            "id": artifact_id,
+            "job_id": job_id,
+            "kind": "text",
+            "instrument": "placeholder",
+            "storage_path": storage_path,
+            "bytes": 50,  # Approximate size of placeholder content
+            "created_at": datetime.utcnow().isoformat()
+        }
+
+        artifact_insert = supabase.table("artifacts").insert(artifact_data).execute()
+
+        if not artifact_insert.data:
+            print(f"⚠️  Failed to create artifact record, but job succeeded")
+        else:
+            print(f"✅ Placeholder artifact created: {artifact_id}")
+
         # Return success result
         result = {
             "job_id": job_id,
             "status": "SUCCEEDED",
-            "message": "T30 empty implementation completed successfully",
+            "message": "T31 empty implementation with placeholder artifact completed successfully",
             "processed_at": datetime.utcnow().isoformat(),
-            "implementation": "empty",
-            "artifacts": []
+            "implementation": "empty_with_artifact",
+            "artifacts": [artifact_id] if artifact_insert.data else []
         }
 
-        print(f"🎉 T30: Job {job_id} completed successfully (RUNNING → SUCCEEDED)")
+        print(f"🎉 T31: Job {job_id} completed successfully (RUNNING → SUCCEEDED) with artifact")
         return result
 
     except Exception as exc:
