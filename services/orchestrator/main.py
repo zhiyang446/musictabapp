@@ -83,6 +83,12 @@ class JobArtifactsResponse(BaseModel):
     artifacts: List[ArtifactItem]
     total: int
 
+class ArtifactSignedUrlResponse(BaseModel):
+    artifact_id: str
+    signed_url: str
+    expires_in: int  # seconds
+    file_name: str
+
 # Create FastAPI app
 app = FastAPI(
     title="Music Transcription Orchestrator",
@@ -427,6 +433,73 @@ async def get_job_artifacts(
     except Exception as e:
         print(f"Get job artifacts error: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve job artifacts")
+
+@app.get("/artifacts/{artifact_id}/signed-url", response_model=ArtifactSignedUrlResponse)
+async def get_artifact_signed_url(
+    artifact_id: str,
+    current_request: Request,
+    _: str = Depends(jwt_bearer)
+) -> ArtifactSignedUrlResponse:
+    """Get signed download URL for an artifact"""
+    user_id = get_current_user_id(current_request)
+
+    try:
+        # Get Supabase client
+        supabase = db_client.get_supabase_client()
+
+        # Query for the specific artifact and verify user access
+        artifact_response = supabase.table("artifacts").select(
+            "id, job_id, kind, instrument, storage_path, jobs!inner(user_id)"
+        ).eq("id", artifact_id).execute()
+
+        if not artifact_response.data or len(artifact_response.data) == 0:
+            raise HTTPException(status_code=404, detail="Artifact not found")
+
+        artifact = artifact_response.data[0]
+
+        # Check if the artifact's job belongs to the current user
+        if artifact["jobs"]["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Access denied: Artifact belongs to another user")
+
+        # Generate signed download URL (expires in 1 hour)
+        storage_path = artifact["storage_path"]
+
+        # Create signed download URL (use audio-input bucket since artifacts bucket doesn't exist)
+        signed_url_response = supabase.storage.from_("audio-input").create_signed_url(
+            storage_path,
+            expires_in=3600  # 1 hour
+        )
+
+        if not signed_url_response.get("signedUrl") and not signed_url_response.get("signedURL"):
+            raise HTTPException(status_code=500, detail="Failed to create signed download URL")
+
+        # Get the signed URL (handle both possible field names)
+        signed_url = signed_url_response.get("signedUrl") or signed_url_response.get("signedURL")
+
+        # Generate a descriptive file name
+        instrument_part = f"_{artifact['instrument']}" if artifact.get("instrument") else ""
+        file_extension = {
+            "midi": ".mid",
+            "musicxml": ".musicxml",
+            "pdf": ".pdf",
+            "preview": ".mp3"
+        }.get(artifact["kind"], ".bin")
+
+        file_name = f"{artifact['kind']}{instrument_part}{file_extension}"
+
+        return ArtifactSignedUrlResponse(
+            artifact_id=artifact_id,
+            signed_url=signed_url,
+            expires_in=3600,
+            file_name=file_name
+        )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions (404, 403)
+        raise
+    except Exception as e:
+        print(f"Get artifact signed URL error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create signed download URL")
 
 if __name__ == "__main__":
     import uvicorn
