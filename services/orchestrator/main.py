@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
+from db import db_client
 
 # Load environment variables
 load_dotenv()
@@ -42,6 +43,12 @@ async def root():
 async def health_check():
     """Health check endpoint"""
     return {"ok": True}
+
+@app.get("/health/db")
+async def database_health_check():
+    """Database health check endpoint"""
+    db_healthy = await db_client.health_check()
+    return {"db": db_healthy}
 
 if __name__ == "__main__":
     import uvicorn
