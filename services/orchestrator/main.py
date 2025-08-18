@@ -53,6 +53,22 @@ class GetJobsResponse(BaseModel):
     has_more: bool
     next_cursor: Optional[str]
 
+class JobDetailResponse(BaseModel):
+    id: str
+    user_id: str
+    source_type: str
+    source_object_path: Optional[str]
+    youtube_url: Optional[str]
+    instruments: List[str]
+    options: dict
+    status: str
+    progress: int
+    error_message: Optional[str]
+    created_at: str
+    updated_at: Optional[str]
+    started_at: Optional[str]
+    completed_at: Optional[str]
+
 # Create FastAPI app
 app = FastAPI(
     title="Music Transcription Orchestrator",
@@ -293,6 +309,56 @@ async def get_jobs(
     except Exception as e:
         print(f"Get jobs error: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve jobs")
+
+@app.get("/jobs/{job_id}", response_model=JobDetailResponse)
+async def get_job_detail(
+    job_id: str,
+    current_request: Request,
+    _: str = Depends(jwt_bearer)
+) -> JobDetailResponse:
+    """Get detailed information about a specific job"""
+    user_id = get_current_user_id(current_request)
+
+    try:
+        # Get Supabase client
+        supabase = db_client.get_supabase_client()
+
+        # Query for the specific job
+        response = supabase.table("jobs").select("*").eq("id", job_id).execute()
+
+        if not response.data or len(response.data) == 0:
+            raise HTTPException(status_code=404, detail="Job not found")
+
+        job = response.data[0]
+
+        # Check if the job belongs to the current user
+        if job["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Access denied: Job belongs to another user")
+
+        # Return detailed job information
+        return JobDetailResponse(
+            id=job["id"],
+            user_id=job["user_id"],
+            source_type=job["source_type"],
+            source_object_path=job.get("source_object_path"),
+            youtube_url=job.get("youtube_url"),
+            instruments=job["instruments"],
+            options=job.get("options", {}),
+            status=job["status"],
+            progress=job.get("progress", 0),
+            error_message=job.get("error_message"),
+            created_at=job["created_at"],
+            updated_at=job.get("updated_at"),
+            started_at=job.get("started_at"),
+            completed_at=job.get("completed_at")
+        )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions (404, 403)
+        raise
+    except Exception as e:
+        print(f"Get job detail error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve job details")
 
 if __name__ == "__main__":
     import uvicorn
