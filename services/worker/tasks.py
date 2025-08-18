@@ -211,11 +211,11 @@ def generate_tabs(self, job_id, audio_path, instruments, options=None):
 @app.task
 def process_job(job_id, job_data=None):
     """
-    Main job processing task - T30 empty implementation
-    Reads job_id and updates status RUNNING → SUCCEEDED
+    Main job processing task - T32 with progress reporting
+    Updates progress: 0 → 25 → 60 → 100
     """
     try:
-        print(f"🔄 T30: Processing job {job_id}")
+        print(f"🔄 T32: Processing job {job_id} with progress reporting")
 
         # Import database client
         import os
@@ -232,39 +232,44 @@ def process_job(job_id, job_data=None):
 
         supabase = create_client(supabase_url, supabase_service_key)
 
-        # Step 1: Update job status to RUNNING
-        print(f"📋 Updating job {job_id} status to RUNNING")
+        def update_progress(progress, status="RUNNING", message=""):
+            """Helper function to update job progress"""
+            print(f"📊 Updating job {job_id} progress to {progress}% - {message}")
 
-        running_update = supabase.table("jobs").update({
-            "status": "RUNNING",
-            "progress": 0
-        }).eq("id", job_id).execute()
+            update_data = {
+                "status": status,
+                "progress": progress
+            }
 
-        if not running_update.data:
-            raise Exception(f"Failed to update job {job_id} to RUNNING status")
+            update_result = supabase.table("jobs").update(update_data).eq("id", job_id).execute()
 
-        print(f"✅ Job {job_id} status updated to RUNNING")
+            if not update_result.data:
+                print(f"⚠️  Failed to update progress to {progress}%")
+            else:
+                print(f"✅ Job {job_id} progress updated to {progress}%")
 
-        # Step 2: Simulate minimal processing (T30 empty implementation)
-        print(f"📋 Processing job {job_id} (empty implementation)")
+            return update_result.data
 
-        # Minimal delay to simulate processing
-        time.sleep(2)
+        # Step 1: Initialize - Progress 0%
+        print(f"📋 Starting job {job_id} processing")
+        update_progress(0, "RUNNING", "Initializing job")
 
-        # Step 3: Update job status to SUCCEEDED
-        print(f"📋 Updating job {job_id} status to SUCCEEDED")
+        # Simulate initialization phase
+        time.sleep(1)
 
-        succeeded_update = supabase.table("jobs").update({
-            "status": "SUCCEEDED",
-            "progress": 100
-        }).eq("id", job_id).execute()
+        # Step 2: Phase 1 - Progress 25%
+        update_progress(25, "RUNNING", "Phase 1: Setup and validation")
+        time.sleep(2)  # Simulate some work
 
-        if not succeeded_update.data:
-            raise Exception(f"Failed to update job {job_id} to SUCCEEDED status")
+        # Step 3: Phase 2 - Progress 60%
+        update_progress(60, "RUNNING", "Phase 2: Main processing")
+        time.sleep(2)  # Simulate more work
 
-        print(f"✅ Job {job_id} status updated to SUCCEEDED")
+        # Step 4: Finalization - Progress 100%
+        print(f"📋 Finalizing job {job_id}")
+        update_progress(100, "SUCCEEDED", "Job completed successfully")
 
-        # Step 4: Create placeholder artifact (T31)
+        # Step 5: Create placeholder artifact (T31)
         print(f"📋 Creating placeholder artifact for job {job_id}")
 
         import uuid
@@ -293,13 +298,14 @@ def process_job(job_id, job_data=None):
         result = {
             "job_id": job_id,
             "status": "SUCCEEDED",
-            "message": "T31 empty implementation with placeholder artifact completed successfully",
+            "message": "T32 job with progress reporting and artifact completed successfully",
             "processed_at": datetime.utcnow().isoformat(),
-            "implementation": "empty_with_artifact",
-            "artifacts": [artifact_id] if artifact_insert.data else []
+            "implementation": "progress_reporting_with_artifact",
+            "artifacts": [artifact_id] if artifact_insert.data else [],
+            "progress_stages": [0, 25, 60, 100]
         }
 
-        print(f"🎉 T31: Job {job_id} completed successfully (RUNNING → SUCCEEDED) with artifact")
+        print(f"🎉 T32: Job {job_id} completed successfully with progress reporting (0→25→60→100)")
         return result
 
     except Exception as exc:
