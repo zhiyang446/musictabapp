@@ -58,29 +58,42 @@ class SupabaseJWTBearer(HTTPBearer):
     async def verify_jwt_token(self, token: str) -> Optional[str]:
         """Verify JWT token with Supabase"""
         try:
-            # Method 1: Decode without verification for testing
-            # In production, you should verify with the JWT secret
-            decoded = jwt.decode(token, options={"verify_signature": False})
-            user_id = decoded.get("sub")
-            
-            if user_id:
-                # Method 2: Verify with Supabase API
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(
-                        f"{self.supabase_url}/auth/v1/user",
-                        headers={
-                            "apikey": self.supabase_anon_key,
-                            "Authorization": f"Bearer {token}"
-                        }
+            # Method 1: Verify with JWT secret if available
+            if self.jwt_secret:
+                try:
+                    decoded = jwt.decode(
+                        token,
+                        self.jwt_secret,
+                        algorithms=["HS256"],
+                        options={"verify_aud": False}  # Supabase doesn't always set aud
                     )
-                    
-                    if response.status_code == 200:
-                        user_data = response.json()
-                        return user_data.get("id", user_id)
-            
-            return user_id
-            
-        except jwt.InvalidTokenError:
+                    user_id = decoded.get("sub")
+                    if user_id:
+                        return user_id
+                except jwt.InvalidTokenError as e:
+                    print(f"JWT signature verification failed: {e}")
+                    # Fall through to API verification
+
+            # Method 2: Verify with Supabase API (more reliable)
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.supabase_url}/auth/v1/user",
+                    headers={
+                        "apikey": self.supabase_anon_key,
+                        "Authorization": f"Bearer {token}"
+                    },
+                    timeout=5.0
+                )
+
+                if response.status_code == 200:
+                    user_data = response.json()
+                    return user_data.get("id")
+                else:
+                    print(f"Supabase API verification failed: {response.status_code}")
+                    return None
+
+        except jwt.InvalidTokenError as e:
+            print(f"JWT token invalid: {e}")
             return None
         except Exception as e:
             print(f"JWT verification error: {e}")
