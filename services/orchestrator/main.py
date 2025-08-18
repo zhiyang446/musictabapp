@@ -3,9 +3,10 @@ Music Transcription Orchestrator Service
 FastAPI application for managing transcription jobs
 """
 
-from fastapi import FastAPI, Depends, Request, HTTPException
+from fastapi import FastAPI, Depends, Request, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional, List
 import os
 import uuid
 from dotenv import load_dotenv
@@ -33,6 +34,24 @@ class CreateJobRequest(BaseModel):
 
 class CreateJobResponse(BaseModel):
     jobId: str
+
+class JobItem(BaseModel):
+    id: str
+    source_type: str
+    source_object_path: Optional[str]
+    youtube_url: Optional[str]
+    instruments: List[str]
+    options: dict
+    status: str
+    progress: int
+    created_at: str
+    updated_at: Optional[str]
+
+class GetJobsResponse(BaseModel):
+    jobs: List[JobItem]
+    total: int
+    has_more: bool
+    next_cursor: Optional[str]
 
 # Create FastAPI app
 app = FastAPI(
@@ -186,6 +205,94 @@ async def create_job(
     except Exception as e:
         print(f"Job creation error: {e}")
         raise HTTPException(status_code=500, detail="Failed to create job")
+
+@app.get("/jobs", response_model=GetJobsResponse)
+async def get_jobs(
+    current_request: Request,
+    status: Optional[str] = Query(None, description="Filter by job status"),
+    cursor: Optional[str] = Query(None, description="Pagination cursor (job ID)"),
+    limit: int = Query(10, ge=1, le=100, description="Number of jobs to return"),
+    _: str = Depends(jwt_bearer)
+) -> GetJobsResponse:
+    """Get paginated list of jobs for the authenticated user"""
+    user_id = get_current_user_id(current_request)
+
+    try:
+        # Get Supabase client
+        supabase = db_client.get_supabase_client()
+
+        # Build query
+        query = supabase.table("jobs").select("*").eq("user_id", user_id)
+
+        # Add status filter if provided
+        if status:
+            query = query.eq("status", status)
+
+        # Add cursor-based pagination
+        if cursor:
+            # Use cursor as the starting point (jobs created before this cursor)
+            query = query.lt("created_at", cursor)
+
+        # Order by created_at descending (newest first) and limit
+        query = query.order("created_at", desc=True).limit(limit + 1)  # +1 to check if there are more
+
+        # Execute query
+        response = query.execute()
+
+        if not response.data:
+            return GetJobsResponse(
+                jobs=[],
+                total=0,
+                has_more=False,
+                next_cursor=None
+            )
+
+        jobs_data = response.data
+        has_more = len(jobs_data) > limit
+
+        # Remove the extra item if we have more than limit
+        if has_more:
+            jobs_data = jobs_data[:-1]
+
+        # Convert to JobItem models
+        jobs = []
+        for job in jobs_data:
+            jobs.append(JobItem(
+                id=job["id"],
+                source_type=job["source_type"],
+                source_object_path=job.get("source_object_path"),
+                youtube_url=job.get("youtube_url"),
+                instruments=job["instruments"],
+                options=job.get("options", {}),
+                status=job["status"],
+                progress=job.get("progress", 0),
+                created_at=job["created_at"],
+                updated_at=job.get("updated_at")
+            ))
+
+        # Get total count for this user (with status filter if applied)
+        count_query = supabase.table("jobs").select("id", count="exact").eq("user_id", user_id)
+        if status:
+            count_query = count_query.eq("status", status)
+
+        count_response = count_query.execute()
+        total = count_response.count if count_response.count is not None else len(jobs)
+
+        # Set next cursor to the created_at of the last job
+        next_cursor = None
+        if has_more and jobs:
+            next_cursor = jobs[-1].created_at
+
+        return GetJobsResponse(
+            jobs=jobs,
+            total=total,
+            has_more=has_more,
+            next_cursor=next_cursor
+        )
+
+    except Exception as e:
+        print(f"Get jobs error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve jobs")
 
 if __name__ == "__main__":
     import uvicorn
