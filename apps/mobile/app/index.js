@@ -45,6 +45,10 @@ export default function HomeScreen() {
     router.push('/login');
   };
 
+  const navigateToUpload = () => {
+    router.push('/upload');
+  };
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -83,7 +87,10 @@ export default function HomeScreen() {
       <View style={styles.buttonContainer}>
         {isAuthenticated ? (
           <>
-            <TouchableOpacity style={styles.button}>
+            <TouchableOpacity
+              style={styles.button}
+              onPress={navigateToUpload}
+            >
               <Text style={styles.buttonText}>Upload Audio</Text>
             </TouchableOpacity>
 
@@ -108,7 +115,7 @@ export default function HomeScreen() {
         )}
       </View>
       
-      <Text style={styles.version}>T35 - Authentication Integrated</Text>
+      <Text style={styles.version}>T36 - Upload URL Integration</Text>
       <StatusBar style="auto" />
     </View>
   );
