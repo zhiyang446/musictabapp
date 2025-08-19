@@ -115,7 +115,7 @@ export default function HomeScreen() {
         )}
       </View>
       
-      <Text style={styles.version}>T36 - Upload URL Integration</Text>
+      <Text style={styles.version}>T37 - File Upload Integration</Text>
       <StatusBar style="auto" />
     </View>
   );

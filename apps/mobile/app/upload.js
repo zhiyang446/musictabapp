@@ -20,6 +20,8 @@ export default function UploadScreen() {
   const [loading, setLoading] = useState(false);
   const [uploadUrl, setUploadUrl] = useState(null);
   const [storagePath, setStoragePath] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState(null); // 'uploading', 'success', 'error'
   const { session, isAuthenticated } = useAuth();
 
   const selectAudioFile = async () => {
@@ -122,10 +124,94 @@ export default function UploadScreen() {
     }
   };
 
+  const uploadFileToStorage = async () => {
+    if (!selectedFile || !uploadUrl) {
+      Alert.alert('Error', 'Please select a file and get upload URL first');
+      return;
+    }
+
+    setLoading(true);
+    setUploadStatus('uploading');
+    setUploadProgress(0);
+
+    try {
+      console.log('📤 T37: Starting file upload...');
+      console.log('📋 T37: Upload details:', {
+        fileName: selectedFile.name,
+        fileSize: selectedFile.size,
+        uploadUrl: uploadUrl.substring(0, 50) + '...',
+        storagePath: storagePath
+      });
+
+      // For React Native Web, we need to handle file upload differently
+      let fileBlob;
+
+      if (selectedFile.uri.startsWith('blob:') || selectedFile.uri.startsWith('data:')) {
+        // Web environment - convert to blob
+        const response = await fetch(selectedFile.uri);
+        fileBlob = await response.blob();
+      } else {
+        // React Native environment - create FormData
+        const formData = new FormData();
+        formData.append('file', {
+          uri: selectedFile.uri,
+          type: selectedFile.mimeType,
+          name: selectedFile.name,
+        });
+        fileBlob = formData;
+      }
+
+      // Use fetch with PUT method for signed URL upload
+      const response = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': selectedFile.mimeType || 'audio/mpeg',
+        },
+        body: fileBlob,
+      });
+
+      console.log('📋 T37: Upload response status:', response.status);
+
+      if (response.ok) {
+        console.log('✅ T37: File upload successful!');
+        console.log('📋 T37 DoD Check - Upload status: 200 OK');
+        console.log('📋 T37: File uploaded to storage path:', storagePath);
+
+        setUploadStatus('success');
+        setUploadProgress(100);
+
+        Alert.alert(
+          'Upload Successful!',
+          `File uploaded successfully to:\n${storagePath}`,
+          [
+            { text: 'OK' },
+            { text: 'View in Supabase', onPress: () => {
+              // Open Supabase storage console
+              console.log('🔗 T37: Check file in Supabase Storage console');
+            }}
+          ]
+        );
+      } else {
+        const errorText = await response.text();
+        console.error('❌ T37: Upload failed:', response.status, errorText);
+        throw new Error(`Upload failed: ${response.status} ${errorText}`);
+      }
+
+    } catch (error) {
+      console.error('❌ T37: Exception during upload:', error);
+      setUploadStatus('error');
+      Alert.alert('Upload Failed', `Failed to upload file: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const clearSelection = () => {
     setSelectedFile(null);
     setUploadUrl(null);
     setStoragePath(null);
+    setUploadProgress(0);
+    setUploadStatus(null);
   };
 
   if (!isAuthenticated) {
@@ -176,17 +262,17 @@ export default function UploadScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Step 2: Get Upload URL</Text>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={[
-              styles.button, 
+              styles.button,
               styles.uploadButton,
               (!selectedFile || loading) && styles.disabledButton
-            ]} 
+            ]}
             onPress={getSignedUploadUrl}
             disabled={!selectedFile || loading}
           >
-            {loading ? (
+            {loading && !uploadStatus ? (
               <ActivityIndicator color="white" />
             ) : (
               <Text style={styles.buttonText}>Get Signed Upload URL</Text>
@@ -204,6 +290,65 @@ export default function UploadScreen() {
           )}
         </View>
 
+        {uploadUrl && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Step 3: Upload File</Text>
+
+            <TouchableOpacity
+              style={[
+                styles.button,
+                styles.uploadFileButton,
+                (loading || uploadStatus === 'success') && styles.disabledButton
+              ]}
+              onPress={uploadFileToStorage}
+              disabled={loading || uploadStatus === 'success'}
+            >
+              {uploadStatus === 'uploading' ? (
+                <ActivityIndicator color="white" />
+              ) : uploadStatus === 'success' ? (
+                <Text style={styles.buttonText}>✅ Upload Complete</Text>
+              ) : (
+                <Text style={styles.buttonText}>Upload File to Storage</Text>
+              )}
+            </TouchableOpacity>
+
+            {uploadStatus === 'uploading' && (
+              <View style={styles.progressContainer}>
+                <Text style={styles.progressText}>Uploading... {uploadProgress}%</Text>
+                <View style={styles.progressBar}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      { width: `${uploadProgress}%` }
+                    ]}
+                  />
+                </View>
+              </View>
+            )}
+
+            {uploadStatus === 'success' && (
+              <View style={styles.successInfo}>
+                <Text style={styles.successTitle}>🎉 Upload Successful!</Text>
+                <Text style={styles.successText}>
+                  File uploaded to: {storagePath}
+                </Text>
+                <Text style={styles.successText}>
+                  Check Supabase Storage console to verify
+                </Text>
+              </View>
+            )}
+
+            {uploadStatus === 'error' && (
+              <View style={styles.errorInfo}>
+                <Text style={styles.errorTitle}>❌ Upload Failed</Text>
+                <Text style={styles.errorText}>
+                  Please try again or check your connection
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {selectedFile && (
           <TouchableOpacity 
             style={[styles.button, styles.clearButton]} 
@@ -214,7 +359,7 @@ export default function UploadScreen() {
         )}
 
         <View style={styles.footer}>
-          <Text style={styles.version}>T36 - Upload URL Implementation</Text>
+          <Text style={styles.version}>T37 - File Upload Implementation</Text>
         </View>
       </View>
       <StatusBar style="auto" />
@@ -274,6 +419,9 @@ const styles = StyleSheet.create({
   uploadButton: {
     backgroundColor: '#007AFF',
   },
+  uploadFileButton: {
+    backgroundColor: '#34C759',
+  },
   clearButton: {
     backgroundColor: '#FF3B30',
   },
@@ -327,6 +475,43 @@ const styles = StyleSheet.create({
   footer: {
     alignItems: 'center',
     marginTop: 20,
+  },
+  progressContainer: {
+    marginTop: 15,
+  },
+  progressText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#34C759',
+    borderRadius: 4,
+  },
+  errorInfo: {
+    backgroundColor: '#ffe8e8',
+    borderRadius: 8,
+    padding: 15,
+    marginTop: 10,
+  },
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#d32f2f',
+    marginBottom: 8,
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#d32f2f',
+    marginBottom: 4,
   },
   version: {
     fontSize: 14,
