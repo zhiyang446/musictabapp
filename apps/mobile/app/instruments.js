@@ -37,6 +37,7 @@ export default function InstrumentsScreen() {
   const [separateEnabled, setSeparateEnabled] = useState(false);
   const [precision, setPrecision] = useState('balanced');
   const [loading, setLoading] = useState(true);
+  const [isClearing, setIsClearing] = useState(false);
   const { isAuthenticated } = useAuth();
 
   // Load saved selections on component mount
@@ -44,31 +45,25 @@ export default function InstrumentsScreen() {
     loadSavedSelections();
   }, []);
 
-  // Save selections whenever they change
+  // Save selections whenever they change (but not during clearing)
   useEffect(() => {
-    if (!loading) {
+    if (!loading && !isClearing) {
       saveSelections();
     }
-  }, [selectedInstrument, separateEnabled, precision, loading]);
+  }, [selectedInstrument, separateEnabled, precision, loading, isClearing]);
 
   const loadSavedSelections = async () => {
     try {
-      console.log('🎵 T38: Loading saved instrument selections...');
-      
       const savedData = await AsyncStorage.getItem(STORAGE_KEY);
-      
+
       if (savedData) {
         const parsed = JSON.parse(savedData);
-        console.log('✅ T38: Loaded saved selections:', parsed);
-        
         setSelectedInstrument(parsed.instrument || null);
         setSeparateEnabled(parsed.separate || false);
         setPrecision(parsed.precision || 'balanced');
-      } else {
-        console.log('📋 T38: No saved selections found, using defaults');
       }
     } catch (error) {
-      console.error('❌ T38: Error loading selections:', error);
+      console.error('Error loading selections:', error);
     } finally {
       setLoading(false);
     }
@@ -82,53 +77,53 @@ export default function InstrumentsScreen() {
         precision: precision,
         timestamp: new Date().toISOString(),
       };
-      
+
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-      console.log('💾 T38: Selections saved to local store:', dataToSave);
     } catch (error) {
-      console.error('❌ T38: Error saving selections:', error);
+      console.error('Error saving selections:', error);
     }
   };
 
   const selectInstrument = (instrumentId) => {
-    console.log(`🎵 T38: Selecting instrument: ${instrumentId}`);
-    console.log('📋 T38: Current selection before:', selectedInstrument);
-
     const newSelection = selectedInstrument === instrumentId ? null : instrumentId;
     setSelectedInstrument(newSelection);
-
-    console.log('📋 T38: Updated instrument selection:', newSelection);
   };
 
   const toggleSeparation = () => {
-    console.log('🔄 T38: Toggling source separation:', !separateEnabled);
     setSeparateEnabled(!separateEnabled);
   };
 
   const selectPrecision = (precisionLevel) => {
-    console.log('⚙️ T38: Setting precision level:', precisionLevel);
     setPrecision(precisionLevel);
   };
 
-  const clearSelections = () => {
-    Alert.alert(
-      'Clear All Selections',
-      'This will reset all your choices:\n• Selected instrument\n• Source separation\n• Precision level\n\nAre you sure?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear All',
-          style: 'destructive',
-          onPress: () => {
-            console.log('🗑️ T38: Clearing all selections');
-            setSelectedInstrument(null);
-            setSeparateEnabled(false);
-            setPrecision('balanced');
-            Alert.alert('Cleared', 'All selections have been cleared.');
-          }
-        }
-      ]
-    );
+
+
+  const clearSelections = async () => {
+    try {
+      // Clear local storage
+      await AsyncStorage.removeItem(STORAGE_KEY);
+
+      // Set clearing flag to prevent auto-save interference
+      setIsClearing(true);
+
+      // Reset all state
+      setSelectedInstrument(null);
+      setSeparateEnabled(false);
+      setPrecision(null);
+
+      // Re-enable auto-save after a delay
+      setTimeout(() => {
+        setIsClearing(false);
+      }, 1000);
+
+      Alert.alert('Success', 'All selections have been cleared!');
+
+    } catch (error) {
+      console.error('Error clearing selections:', error);
+      setIsClearing(false);
+      Alert.alert('Error', 'Failed to clear selections. Please try again.');
+    }
   };
 
   const proceedToProcessing = () => {
@@ -200,6 +195,8 @@ export default function InstrumentsScreen() {
       <View style={styles.container}>
         <Text style={styles.title}>🎵 Instrument Selection</Text>
         <Text style={styles.subtitle}>Choose instruments to transcribe</Text>
+
+
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Instruments</Text>
