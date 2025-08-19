@@ -53,6 +53,10 @@ export default function HomeScreen() {
     router.push('/instruments');
   };
 
+  const navigateToJobs = () => {
+    router.push('/jobs');
+  };
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -105,8 +109,11 @@ export default function HomeScreen() {
               <Text style={styles.buttonText}>Select Instruments</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.button}>
-              <Text style={styles.buttonText}>Browse Library</Text>
+            <TouchableOpacity
+              style={styles.button}
+              onPress={navigateToJobs}
+            >
+              <Text style={styles.buttonText}>My Jobs</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
