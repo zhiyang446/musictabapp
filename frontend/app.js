@@ -51,7 +51,10 @@ class MusicTabApp {
 
         // Status update functionality
         document.getElementById('updateStatusBtn').addEventListener('click', () => this.updateJobStatus());
-        document.getElementById('simulateProgressBtn').addEventListener('click', () => this.simulateProgress());
+        document.getElementById('simulateProgressBtn').addEventListener('click', () => {
+            console.log('🔘 Simulate Progress button event triggered');
+            this.simulateProgress();
+        });
         document.getElementById('jobSelect').addEventListener('change', () => this.validateStatusUpdateForm());
         document.getElementById('statusSelect').addEventListener('change', () => this.validateStatusUpdateForm());
 
@@ -654,31 +657,41 @@ class MusicTabApp {
     }
 
     async simulateProgress() {
+        console.log('🎯 Simulate Progress button clicked!');
+
         const jobSelect = document.getElementById('jobSelect');
         const simulateBtn = document.getElementById('simulateProgressBtn');
 
+        console.log('Job select value:', jobSelect.value);
+        console.log('Job select element:', jobSelect);
+
         if (!jobSelect.value) {
+            console.log('❌ No job selected');
             this.showToast('Please select a job first', 'warning');
             return;
         }
 
         const jobId = jobSelect.value;
+        console.log('🚀 Starting simulation for job:', jobId);
 
         try {
             simulateBtn.disabled = true;
             simulateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Simulating...';
 
             // Start processing
+            console.log('📝 Setting status to processing...');
             await this.updateJobStatusDirect(jobId, { status: 'processing', progress_percentage: 0 });
             this.showToast('Started progress simulation', 'info');
 
             // Simulate progress updates
             for (let progress = 10; progress <= 100; progress += 10) {
+                console.log(`⏳ Updating progress to ${progress}%...`);
                 await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
 
                 const updateData = { progress_percentage: progress };
                 if (progress === 100) {
                     updateData.status = 'completed';
+                    console.log('✅ Setting status to completed');
                 }
 
                 await this.updateJobStatusDirect(jobId, updateData);
@@ -688,13 +701,15 @@ class MusicTabApp {
             }
 
             this.showToast('Progress simulation completed!', 'success');
+            console.log('🎉 Simulation completed successfully!');
 
         } catch (error) {
-            console.error('Progress simulation failed:', error);
+            console.error('❌ Progress simulation failed:', error);
             this.showToast(`Simulation failed: ${error.message}`, 'error');
         } finally {
             simulateBtn.disabled = false;
             simulateBtn.innerHTML = '<i class="fas fa-play"></i> Simulate Progress';
+            console.log('🔄 Button reset');
         }
     }
 
@@ -770,5 +785,6 @@ class MusicTabApp {
 
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    new MusicTabApp();
+    window.app = new MusicTabApp();
+    console.log('🌍 App instance exposed to window.app for debugging');
 });

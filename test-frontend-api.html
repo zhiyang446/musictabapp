@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Frontend API Connection</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        button { padding: 10px 20px; margin: 5px; border: none; border-radius: 3px; cursor: pointer; background: #007bff; color: white; }
+        .log { background: #f8f9fa; border: 1px solid #dee2e6; padding: 10px; margin: 10px 0; border-radius: 3px; font-family: monospace; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
+        select { padding: 5px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Frontend API Connection</h1>
+    
+    <div>
+        <button onclick="testApiConnection()">1. Test API Connection</button>
+        <button onclick="loadJobs()">2. Load Jobs</button>
+        <button onclick="testSimulate()">3. Test Simulate</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+    
+    <div>
+        <label>Select Job: </label>
+        <select id="jobSelect">
+            <option value="">Select a job...</option>
+        </select>
+    </div>
+    
+    <div id="log" class="log">Ready to test...\n</div>
+
+    <script>
+        const apiBaseUrl = 'http://localhost:3001';
+        
+        function log(message) {
+            const logElement = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function clearLog() {
+            document.getElementById('log').textContent = 'Log cleared...\n';
+        }
+        
+        async function testApiConnection() {
+            log('🔍 Testing API connection...');
+            try {
+                const response = await fetch(`${apiBaseUrl}/health`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                const data = await response.json();
+                log(`✅ API Connection successful: ${JSON.stringify(data)}`);
+            } catch (error) {
+                log(`❌ API Connection failed: ${error.message}`);
+            }
+        }
+        
+        async function loadJobs() {
+            log('📋 Loading transcription jobs...');
+            try {
+                const response = await fetch(`${apiBaseUrl}/api/transcription-jobs`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                const data = await response.json();
+                log(`✅ Jobs loaded: ${data.data.length} jobs found`);
+                
+                // Populate select
+                const select = document.getElementById('jobSelect');
+                select.innerHTML = '<option value="">Select a job...</option>';
+                
+                data.data.forEach(job => {
+                    const option = document.createElement('option');
+                    option.value = job.id;
+                    option.textContent = `${job.id.substring(0, 8)}... - ${job.status} (${job.progress_percentage}%)`;
+                    select.appendChild(option);
+                });
+                
+                log(`First few jobs: ${JSON.stringify(data.data.slice(0, 3).map(j => ({
+                    id: j.id.substring(0, 8) + '...',
+                    status: j.status,
+                    progress: j.progress_percentage
+                })), null, 2)}`);
+                
+            } catch (error) {
+                log(`❌ Error loading jobs: ${error.message}`);
+            }
+        }
+        
+        async function testSimulate() {
+            const jobSelect = document.getElementById('jobSelect');
+            if (!jobSelect.value) {
+                log('⚠️ Please select a job first');
+                return;
+            }
+            
+            const jobId = jobSelect.value;
+            log(`🚀 Testing simulate progress for job: ${jobId}`);
+            
+            try {
+                // Test the updateJobStatusDirect function like the frontend does
+                log('📝 Step 1: Setting status to processing...');
+                let response = await fetch(`${apiBaseUrl}/api/transcription-jobs/${jobId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'processing', progress_percentage: 0 })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`API Error: ${errorData.message || response.statusText}`);
+                }
+                
+                let result = await response.json();
+                log(`✅ Status set to processing: ${result.data.status} (${result.data.progress_percentage}%)`);
+                
+                // Simulate progress updates like the frontend does
+                for (let progress = 10; progress <= 100; progress += 20) {
+                    log(`⏳ Step ${Math.floor(progress/20) + 1}: Updating progress to ${progress}%...`);
+                    
+                    const updateData = { progress_percentage: progress };
+                    if (progress === 100) {
+                        updateData.status = 'completed';
+                    }
+                    
+                    response = await fetch(`${apiBaseUrl}/api/transcription-jobs/${jobId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updateData)
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(`API Error at ${progress}%: ${errorData.message || response.statusText}`);
+                    }
+                    
+                    result = await response.json();
+                    log(`✅ Progress ${progress}% - Status: ${result.data.status}`);
+                    
+                    // Wait 1 second like the frontend does
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+                
+                log('🎉 Simulate progress test completed successfully!');
+                
+            } catch (error) {
+                log(`❌ Simulate test failed: ${error.message}`);
+                console.error('Full error:', error);
+            }
+        }
+        
+        // Auto-test on page load
+        window.addEventListener('load', () => {
+            log('🌐 Page loaded, ready for testing');
+            log('💡 Tip: Click "1. Test API Connection" first, then "2. Load Jobs", select a job, and "3. Test Simulate"');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Simulate Progress</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            border: 1px solid #ddd;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Simulate Progress Functionality</h1>
+    
+    <div class="test-section">
+        <h2>1. API Connection Test</h2>
+        <button id="testApiBtn" class="btn-primary">Test API Connection</button>
+        <div id="apiLog" class="log"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. Load Jobs Test</h2>
+        <button id="loadJobsBtn" class="btn-primary">Load Jobs</button>
+        <select id="testJobSelect">
+            <option value="">Select a job...</option>
+        </select>
+        <div id="jobsLog" class="log"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. Simulate Progress Test</h2>
+        <button id="testSimulateBtn" class="btn-success">Test Simulate Progress</button>
+        <div id="simulateLog" class="log"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>4. Direct API Test</h2>
+        <button id="directApiBtn" class="btn-warning">Direct API Update Test</button>
+        <div id="directLog" class="log"></div>
+    </div>
+
+    <script>
+        const apiBaseUrl = 'http://localhost:3001';
+        
+        function log(elementId, message) {
+            const element = document.getElementById(elementId);
+            const timestamp = new Date().toLocaleTimeString();
+            element.textContent += `[${timestamp}] ${message}\n`;
+            element.scrollTop = element.scrollHeight;
+        }
+        
+        // Test API connection
+        document.getElementById('testApiBtn').addEventListener('click', async () => {
+            log('apiLog', '🔍 Testing API connection...');
+            try {
+                const response = await fetch(`${apiBaseUrl}/health`);
+                const data = await response.json();
+                log('apiLog', `✅ API Response: ${JSON.stringify(data, null, 2)}`);
+            } catch (error) {
+                log('apiLog', `❌ API Error: ${error.message}`);
+            }
+        });
+        
+        // Load jobs
+        document.getElementById('loadJobsBtn').addEventListener('click', async () => {
+            log('jobsLog', '📋 Loading transcription jobs...');
+            try {
+                const response = await fetch(`${apiBaseUrl}/api/transcription-jobs`);
+                const data = await response.json();
+                log('jobsLog', `✅ Jobs loaded: ${data.data.length} jobs found`);
+                
+                // Populate select
+                const select = document.getElementById('testJobSelect');
+                select.innerHTML = '<option value="">Select a job...</option>';
+                
+                data.data.forEach(job => {
+                    const option = document.createElement('option');
+                    option.value = job.id;
+                    option.textContent = `${job.id.substring(0, 8)}... - ${job.status} (${job.progress_percentage}%)`;
+                    select.appendChild(option);
+                });
+                
+                log('jobsLog', `Jobs: ${JSON.stringify(data.data.map(j => ({
+                    id: j.id.substring(0, 8) + '...',
+                    status: j.status,
+                    progress: j.progress_percentage
+                })), null, 2)}`);
+                
+            } catch (error) {
+                log('jobsLog', `❌ Error loading jobs: ${error.message}`);
+            }
+        });
+        
+        // Test simulate progress
+        document.getElementById('testSimulateBtn').addEventListener('click', async () => {
+            const jobSelect = document.getElementById('testJobSelect');
+            if (!jobSelect.value) {
+                log('simulateLog', '⚠️ Please select a job first');
+                return;
+            }
+            
+            const jobId = jobSelect.value;
+            log('simulateLog', `🚀 Starting simulation for job: ${jobId}`);
+            
+            try {
+                // Start processing
+                log('simulateLog', '📝 Setting status to processing...');
+                let response = await fetch(`${apiBaseUrl}/api/transcription-jobs/${jobId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'processing', progress_percentage: 0 })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`API Error: ${errorData.message}`);
+                }
+                
+                log('simulateLog', '✅ Status set to processing');
+                
+                // Simulate progress
+                for (let progress = 10; progress <= 100; progress += 20) {
+                    log('simulateLog', `⏳ Updating progress to ${progress}%...`);
+                    
+                    const updateData = { progress_percentage: progress };
+                    if (progress === 100) {
+                        updateData.status = 'completed';
+                    }
+                    
+                    response = await fetch(`${apiBaseUrl}/api/transcription-jobs/${jobId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updateData)
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(`API Error at ${progress}%: ${errorData.message}`);
+                    }
+                    
+                    const result = await response.json();
+                    log('simulateLog', `✅ Progress ${progress}% - Status: ${result.data.status}`);
+                    
+                    // Wait 1 second
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+                
+                log('simulateLog', '🎉 Simulation completed successfully!');
+                
+            } catch (error) {
+                log('simulateLog', `❌ Simulation failed: ${error.message}`);
+            }
+        });
+        
+        // Direct API test
+        document.getElementById('directApiBtn').addEventListener('click', async () => {
+            const jobSelect = document.getElementById('testJobSelect');
+            if (!jobSelect.value) {
+                log('directLog', '⚠️ Please select a job first');
+                return;
+            }
+            
+            const jobId = jobSelect.value;
+            log('directLog', `🔧 Testing direct API update for job: ${jobId}`);
+            
+            try {
+                const response = await fetch(`${apiBaseUrl}/api/transcription-jobs/${jobId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ progress_percentage: 50 })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`API Error: ${errorData.message}`);
+                }
+                
+                const result = await response.json();
+                log('directLog', `✅ Direct update successful: ${JSON.stringify(result.data, null, 2)}`);
+                
+            } catch (error) {
+                log('directLog', `❌ Direct update failed: ${error.message}`);
+            }
+        });
+    </script>
+</body>
+</html>

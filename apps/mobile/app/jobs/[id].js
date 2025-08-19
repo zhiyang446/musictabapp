@@ -7,10 +7,12 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../supabase/client';
 
 const ORCHESTRATOR_URL = 'http://localhost:8000';
 
@@ -19,12 +21,16 @@ export default function JobDetailsScreen() {
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [realtimeStatus, setRealtimeStatus] = useState('disconnected');
+  const [artifacts, setArtifacts] = useState([]);
+  const [artifactsLoading, setArtifactsLoading] = useState(false);
+  const [artifactsError, setArtifactsError] = useState(null);
   const { session, isAuthenticated } = useAuth();
 
   const fetchJobDetails = async () => {
     try {
       console.log('📋 T39: Fetching job details for ID:', jobId);
-      
+
       const response = await fetch(`${ORCHESTRATOR_URL}/jobs/${jobId}`, {
         method: 'GET',
         headers: {
@@ -52,9 +58,97 @@ export default function JobDetailsScreen() {
     }
   };
 
+  const fetchJobArtifacts = async () => {
+    try {
+      console.log('📦 T42: Fetching artifacts for job ID:', jobId);
+      setArtifactsLoading(true);
+      setArtifactsError(null);
+
+      const response = await fetch(`${ORCHESTRATOR_URL}/jobs/${jobId}/artifacts`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      console.log('📦 T42: Artifacts response status:', response.status);
+
+      if (response.ok) {
+        const artifactsData = await response.json();
+        console.log('✅ T42: Artifacts fetched:', artifactsData);
+        setArtifacts(artifactsData.artifacts || []);
+        setArtifactsError(null);
+      } else {
+        const errorData = await response.json();
+        console.error('❌ T42: Failed to fetch artifacts:', response.status, errorData);
+        setArtifactsError(errorData.message || `Failed to fetch artifacts: ${response.status}`);
+      }
+    } catch (err) {
+      console.error('❌ T42: Exception fetching artifacts:', err);
+      setArtifactsError(err.message);
+    } finally {
+      setArtifactsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (isAuthenticated && jobId) {
       fetchJobDetails();
+
+      // T41: Set up Realtime subscription for job updates
+      console.log('🔄 T41: Setting up Realtime subscription for job:', jobId);
+
+      const subscription = supabase
+        .channel(`job-${jobId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'jobs',
+            filter: `id=eq.${jobId}`
+          },
+          (payload) => {
+            console.log('🔄 T41: Received job update:', payload);
+            const updatedJob = payload.new;
+
+            if (updatedJob) {
+              console.log('✅ T41: Updating job state with new data:', {
+                status: updatedJob.status,
+                progress: updatedJob.progress,
+                error_message: updatedJob.error_message
+              });
+
+              // Update the job state with new data
+              setJob(prevJob => ({
+                ...prevJob,
+                ...updatedJob,
+                // Ensure we keep the original structure
+                id: updatedJob.id,
+                status: updatedJob.status,
+                progress: updatedJob.progress || 0,
+                error_message: updatedJob.error_message,
+                updated_at: updatedJob.updated_at
+              }));
+            }
+          }
+        )
+        .subscribe((status) => {
+          console.log('📋 T41: Subscription status:', status);
+          setRealtimeStatus(status.toLowerCase());
+
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ T41: Successfully subscribed to job updates');
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('❌ T41: Subscription error');
+          }
+        });
+
+      // Cleanup subscription on unmount
+      return () => {
+        console.log('🧹 T41: Cleaning up Realtime subscription');
+        subscription.unsubscribe();
+      };
     }
   }, [isAuthenticated, jobId]);
 
@@ -139,24 +233,45 @@ export default function JobDetailsScreen() {
 
         {/* Job Status */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Status</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Status</Text>
+            <View style={styles.realtimeIndicator}>
+              <Text style={styles.realtimeIcon}>
+                {realtimeStatus === 'subscribed' ? '🟢' : realtimeStatus === 'connecting' ? '🟡' : '🔴'}
+              </Text>
+              <Text style={styles.realtimeText}>
+                {realtimeStatus === 'subscribed' ? 'Live' : realtimeStatus === 'connecting' ? 'Connecting' : 'Offline'}
+              </Text>
+            </View>
+          </View>
           <View style={styles.statusContainer}>
             <Text style={styles.statusIcon}>{getStatusIcon(job.status)}</Text>
             <Text style={[styles.statusText, { color: getStatusColor(job.status) }]}>
               {job.status?.toUpperCase() || 'UNKNOWN'}
             </Text>
           </View>
-          {job.progress !== undefined && (
+          {job.progress !== undefined && job.progress >= 0 && (
             <View style={styles.progressContainer}>
-              <Text style={styles.progressText}>Progress: {job.progress}%</Text>
+              <View style={styles.progressHeader}>
+                <Text style={styles.progressText}>Progress</Text>
+                <Text style={styles.progressPercentage}>{job.progress}%</Text>
+              </View>
               <View style={styles.progressBar}>
-                <View 
+                <View
                   style={[
-                    styles.progressFill, 
-                    { width: `${job.progress}%` }
-                  ]} 
+                    styles.progressFill,
+                    {
+                      width: `${Math.max(0, Math.min(100, job.progress))}%`,
+                      backgroundColor: job.progress === 100 ? '#28A745' : '#007AFF'
+                    }
+                  ]}
                 />
               </View>
+              {job.status === 'running' && (
+                <Text style={styles.progressNote}>
+                  🔄 Job is processing... Updates will appear automatically
+                </Text>
+              )}
             </View>
           )}
         </View>
@@ -276,11 +391,29 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 15,
+  },
+  realtimeIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  realtimeIcon: {
+    fontSize: 12,
+    marginRight: 4,
+  },
+  realtimeText: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
   },
   statusContainer: {
     flexDirection: 'row',
@@ -296,12 +429,29 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   progressContainer: {
-    marginTop: 10,
+    marginTop: 15,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   progressText: {
     fontSize: 14,
     color: '#666',
-    marginBottom: 8,
+    fontWeight: '500',
+  },
+  progressPercentage: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '600',
+  },
+  progressNote: {
+    fontSize: 12,
+    color: '#007AFF',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   progressBar: {
     height: 8,
