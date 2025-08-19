@@ -9,13 +9,14 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { useAuth } from '../contexts/AuthContext';
 
 const ORCHESTRATOR_URL = 'http://localhost:8000'; // TODO: Move to env
 
 export default function UploadScreen() {
+  const params = useLocalSearchParams();
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [uploadUrl, setUploadUrl] = useState(null);
@@ -23,6 +24,13 @@ export default function UploadScreen() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState(null); // 'uploading', 'success', 'error'
   const { session, isAuthenticated } = useAuth();
+
+  // Extract instrument configuration from navigation params
+  const instrumentConfig = {
+    selectedInstrument: params.selectedInstrument || null,
+    separateEnabled: params.separateEnabled === 'true',
+    precision: params.precision || 'balanced'
+  };
 
   const selectAudioFile = async () => {
     try {
@@ -180,17 +188,8 @@ export default function UploadScreen() {
         setUploadStatus('success');
         setUploadProgress(100);
 
-        Alert.alert(
-          'Upload Successful!',
-          `File uploaded successfully to:\n${storagePath}`,
-          [
-            { text: 'OK' },
-            { text: 'View in Supabase', onPress: () => {
-              // Open Supabase storage console
-              console.log('🔗 T37: Check file in Supabase Storage console');
-            }}
-          ]
-        );
+        // T39: Create transcription job after successful upload
+        await createTranscriptionJob();
       } else {
         const errorText = await response.text();
         console.error('❌ T37: Upload failed:', response.status, errorText);
@@ -203,6 +202,81 @@ export default function UploadScreen() {
       Alert.alert('Upload Failed', `Failed to upload file: ${error.message}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const createTranscriptionJob = async () => {
+    try {
+      console.log('🎯 T39: Creating transcription job...');
+      console.log('📋 T39: Job parameters:', {
+        source_type: 'upload',
+        source_object_path: storagePath,
+        instruments: instrumentConfig.selectedInstrument,
+        options: {
+          separate: instrumentConfig.separateEnabled,
+          precision: instrumentConfig.precision
+        }
+      });
+
+      const jobData = {
+        source_type: 'upload',
+        source_object_path: storagePath,
+        instruments: [instrumentConfig.selectedInstrument],
+        options: {
+          separate: instrumentConfig.separateEnabled,
+          precision: instrumentConfig.precision
+        }
+      };
+
+      const response = await fetch(`${ORCHESTRATOR_URL}/jobs`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(jobData)
+      });
+
+      console.log('📋 T39: Job creation response status:', response.status);
+
+      if (response.ok) {
+        const result = await response.json();
+        const jobId = result.jobId || result.id;
+
+        console.log('✅ T39: Job created successfully!');
+        console.log('📋 T39: Job ID:', jobId);
+        console.log('📋 T39 DoD Check - Received jobId:', jobId);
+
+        Alert.alert(
+          'Job Created! 🎉',
+          `Your transcription job has been created.\nJob ID: ${jobId}\n\nYou will be redirected to the job details page.`,
+          [
+            {
+              text: 'View Job Details',
+              onPress: () => {
+                console.log('🔄 T39: Navigating to job details page');
+                // T39: Navigate to job details page
+                router.push(`/jobs/${jobId}`);
+              }
+            }
+          ]
+        );
+      } else {
+        const errorData = await response.json();
+        console.error('❌ T39: Job creation failed:', response.status, errorData);
+        throw new Error(errorData.message || `Job creation failed: ${response.status}`);
+      }
+
+    } catch (error) {
+      console.error('❌ T39: Exception during job creation:', error);
+      Alert.alert(
+        'Job Creation Failed',
+        `Failed to create transcription job: ${error.message}\n\nYour file was uploaded successfully, but the job could not be created.`,
+        [
+          { text: 'OK' },
+          { text: 'Retry', onPress: createTranscriptionJob }
+        ]
+      );
     }
   };
 
@@ -235,6 +309,33 @@ export default function UploadScreen() {
       <View style={styles.container}>
         <Text style={styles.title}>🎵 Upload Audio</Text>
         <Text style={styles.subtitle}>Select an audio file to get started</Text>
+
+        {/* Instrument Configuration Display */}
+        {instrumentConfig.selectedInstrument && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🎯 Transcription Settings</Text>
+            <View style={styles.configItem}>
+              <Text style={styles.configLabel}>Instrument:</Text>
+              <Text style={styles.configValue}>{instrumentConfig.selectedInstrument}</Text>
+            </View>
+            <View style={styles.configItem}>
+              <Text style={styles.configLabel}>Source Separation:</Text>
+              <Text style={styles.configValue}>
+                {instrumentConfig.separateEnabled ? 'Enabled' : 'Disabled'}
+              </Text>
+            </View>
+            <View style={styles.configItem}>
+              <Text style={styles.configLabel}>Precision Level:</Text>
+              <Text style={styles.configValue}>{instrumentConfig.precision}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.editConfigButton}
+              onPress={() => router.back()}
+            >
+              <Text style={styles.editConfigButtonText}>Edit Settings</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Step 1: Select Audio File</Text>
@@ -405,6 +506,39 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginBottom: 15,
+  },
+  configItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  configLabel: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '500',
+  },
+  configValue: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  editConfigButton: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    marginTop: 15,
+    borderWidth: 1,
+    borderColor: '#007AFF',
+  },
+  editConfigButtonText: {
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   button: {
     backgroundColor: '#007AFF',

@@ -127,41 +127,28 @@ export default function InstrumentsScreen() {
   };
 
   const proceedToProcessing = () => {
-    console.log('🔘 T38: Continue button pressed!');
-    console.log('📋 T38: Current state:', {
-      selectedInstrument,
-      separateEnabled,
-      precision
-    });
-
+    // Validate that at least an instrument is selected
     if (!selectedInstrument) {
-      console.log('❌ T38: No instrument selected');
-      Alert.alert('No Instrument Selected', 'Please select an instrument to transcribe.');
+      Alert.alert(
+        'Selection Required',
+        'Please select an instrument before continuing.',
+        [{ text: 'OK', style: 'default' }]
+      );
       return;
     }
 
-    console.log('🚀 T38: Proceeding with selections:', {
-      instrument: selectedInstrument,
-      separate: separateEnabled,
-      precision: precision
-    });
+    // Save current selections before navigating
+    saveSelections();
 
-    Alert.alert(
-      'Configuration Complete ✅',
-      `Your settings:\n\n🎵 Instrument: ${selectedInstrument}\n🔄 Source Separation: ${separateEnabled ? 'Enabled' : 'Disabled'}\n⚙️ Precision: ${precision}\n\nNote: The next step (T39 - Job Creation) is not yet implemented. This completes T38 - Instrument Selection.`,
-      [
-        { text: 'OK', style: 'default' },
-        { text: 'Save & Continue', style: 'default', onPress: () => {
-          console.log('📋 T38: Configuration saved and ready for T39 - Create Job');
-          console.log('🎯 T38: Task completed successfully!');
-          Alert.alert(
-            'T38 Complete! 🎉',
-            'Instrument selection is working perfectly!\n\nNext: T39 will implement job creation and processing.',
-            [{ text: 'Great!', style: 'default' }]
-          );
-        }}
-      ]
-    );
+    // Navigate to upload page with instrument configuration
+    router.push({
+      pathname: '/upload',
+      params: {
+        selectedInstrument,
+        separateEnabled: separateEnabled.toString(),
+        precision: precision || 'balanced'
+      }
+    });
   };
 
   if (!isAuthenticated) {
