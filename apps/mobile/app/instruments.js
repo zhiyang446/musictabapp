@@ -33,7 +33,7 @@ const PRECISION_OPTIONS = [
 ];
 
 export default function InstrumentsScreen() {
-  const [selectedInstruments, setSelectedInstruments] = useState([]);
+  const [selectedInstrument, setSelectedInstrument] = useState(null);
   const [separateEnabled, setSeparateEnabled] = useState(false);
   const [precision, setPrecision] = useState('balanced');
   const [loading, setLoading] = useState(true);
@@ -49,7 +49,7 @@ export default function InstrumentsScreen() {
     if (!loading) {
       saveSelections();
     }
-  }, [selectedInstruments, separateEnabled, precision, loading]);
+  }, [selectedInstrument, separateEnabled, precision, loading]);
 
   const loadSavedSelections = async () => {
     try {
@@ -61,7 +61,7 @@ export default function InstrumentsScreen() {
         const parsed = JSON.parse(savedData);
         console.log('✅ T38: Loaded saved selections:', parsed);
         
-        setSelectedInstruments(parsed.instruments || []);
+        setSelectedInstrument(parsed.instrument || null);
         setSeparateEnabled(parsed.separate || false);
         setPrecision(parsed.precision || 'balanced');
       } else {
@@ -77,7 +77,7 @@ export default function InstrumentsScreen() {
   const saveSelections = async () => {
     try {
       const dataToSave = {
-        instruments: selectedInstruments,
+        instrument: selectedInstrument,
         separate: separateEnabled,
         precision: precision,
         timestamp: new Date().toISOString(),
@@ -90,18 +90,13 @@ export default function InstrumentsScreen() {
     }
   };
 
-  const toggleInstrument = (instrumentId) => {
-    console.log(`🎵 T38: Toggling instrument: ${instrumentId}`);
-    
-    setSelectedInstruments(prev => {
-      const isSelected = prev.includes(instrumentId);
-      const newSelection = isSelected 
-        ? prev.filter(id => id !== instrumentId)
-        : [...prev, instrumentId];
-      
-      console.log('📋 T38: Updated instrument selection:', newSelection);
-      return newSelection;
-    });
+  const selectInstrument = (instrumentId) => {
+    console.log(`🎵 T38: Selecting instrument: ${instrumentId}`);
+
+    const newSelection = selectedInstrument === instrumentId ? null : instrumentId;
+    setSelectedInstrument(newSelection);
+
+    console.log('📋 T38: Updated instrument selection:', newSelection);
   };
 
   const toggleSeparation = () => {
@@ -125,7 +120,7 @@ export default function InstrumentsScreen() {
           style: 'destructive',
           onPress: () => {
             console.log('🗑️ T38: Clearing all selections');
-            setSelectedInstruments([]);
+            setSelectedInstrument(null);
             setSeparateEnabled(false);
             setPrecision('balanced');
           }
@@ -135,20 +130,20 @@ export default function InstrumentsScreen() {
   };
 
   const proceedToProcessing = () => {
-    if (selectedInstruments.length === 0) {
-      Alert.alert('No Instruments Selected', 'Please select at least one instrument to transcribe.');
+    if (!selectedInstrument) {
+      Alert.alert('No Instrument Selected', 'Please select an instrument to transcribe.');
       return;
     }
 
     console.log('🚀 T38: Proceeding with selections:', {
-      instruments: selectedInstruments,
+      instrument: selectedInstrument,
       separate: separateEnabled,
       precision: precision
     });
 
     Alert.alert(
       'Processing Configuration',
-      `Selected: ${selectedInstruments.join(', ')}\nSeparation: ${separateEnabled ? 'Yes' : 'No'}\nPrecision: ${precision}`,
+      `Selected: ${selectedInstrument}\nSeparation: ${separateEnabled ? 'Yes' : 'No'}\nPrecision: ${precision}`,
       [
         { text: 'OK' },
         { text: 'Continue to Processing', onPress: () => {
@@ -194,7 +189,7 @@ export default function InstrumentsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Instruments</Text>
           <Text style={styles.sectionDescription}>
-            Select one or more instruments to transcribe from your audio
+            Select one instrument to transcribe from your audio
           </Text>
           
           {INSTRUMENTS.map((instrument) => (
@@ -202,16 +197,16 @@ export default function InstrumentsScreen() {
               key={instrument.id}
               style={[
                 styles.instrumentCard,
-                selectedInstruments.includes(instrument.id) && styles.selectedCard
+                selectedInstrument === instrument.id && styles.selectedCard
               ]}
-              onPress={() => toggleInstrument(instrument.id)}
+              onPress={() => selectInstrument(instrument.id)}
             >
               <View style={styles.instrumentHeader}>
                 <Text style={styles.instrumentIcon}>{instrument.icon}</Text>
                 <View style={styles.instrumentInfo}>
                   <Text style={[
                     styles.instrumentName,
-                    selectedInstruments.includes(instrument.id) && styles.selectedText
+                    selectedInstrument === instrument.id && styles.selectedText
                   ]}>
                     {instrument.name}
                   </Text>
@@ -220,11 +215,11 @@ export default function InstrumentsScreen() {
                   </Text>
                 </View>
                 <View style={[
-                  styles.checkbox,
-                  selectedInstruments.includes(instrument.id) && styles.checkedBox
+                  styles.radioButton,
+                  selectedInstrument === instrument.id && styles.selectedRadio
                 ]}>
-                  {selectedInstruments.includes(instrument.id) && (
-                    <Text style={styles.checkmark}>✓</Text>
+                  {selectedInstrument === instrument.id && (
+                    <View style={styles.radioDot} />
                   )}
                 </View>
               </View>
@@ -314,17 +309,17 @@ export default function InstrumentsScreen() {
             <Text style={styles.clearButtonText}>Clear All</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
-              styles.button, 
+              styles.button,
               styles.proceedButton,
-              selectedInstruments.length === 0 && styles.disabledButton
-            ]} 
+              !selectedInstrument && styles.disabledButton
+            ]}
             onPress={proceedToProcessing}
-            disabled={selectedInstruments.length === 0}
+            disabled={!selectedInstrument}
           >
             <Text style={styles.buttonText}>
-              Continue ({selectedInstruments.length} selected)
+              Continue {selectedInstrument ? `(${selectedInstrument})` : '(none selected)'}
             </Text>
           </TouchableOpacity>
         </View>

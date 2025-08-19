@@ -36,8 +36,8 @@ function testT38() {
                                      instrumentsContent.includes('guitar') && 
                                      instrumentsContent.includes('piano') && 
                                      instrumentsContent.includes('chords');
-            const hasMultiSelect = instrumentsContent.includes('selectedInstruments') && 
-                                 instrumentsContent.includes('toggleInstrument');
+            const hasSingleSelect = instrumentsContent.includes('selectedInstrument') &&
+                                 instrumentsContent.includes('selectInstrument');
             const hasSeparateOption = instrumentsContent.includes('separate') && 
                                     instrumentsContent.includes('Source Separation');
             const hasPrecisionOptions = instrumentsContent.includes('precision') && 
@@ -50,7 +50,7 @@ function testT38() {
             
             console.log(`   AsyncStorage import: ${hasAsyncStorage ? '✅' : '❌'}`);
             console.log(`   Instruments list (drums/bass/guitar/piano/chords): ${hasInstrumentsList ? '✅' : '❌'}`);
-            console.log(`   Multi-select functionality: ${hasMultiSelect ? '✅' : '❌'}`);
+            console.log(`   Single-select functionality: ${hasSingleSelect ? '✅' : '❌'}`);
             console.log(`   Separate option: ${hasSeparateOption ? '✅' : '❌'}`);
             console.log(`   Precision options: ${hasPrecisionOptions ? '✅' : '❌'}`);
             console.log(`   Local storage persistence: ${hasLocalStorage ? '✅' : '❌'}`);
@@ -107,15 +107,14 @@ function testT38() {
         if (hasInstrumentsPage) {
             const instrumentsContent = fs.readFileSync(instrumentsPagePath, 'utf8');
             
-            const hasCheckboxes = instrumentsContent.includes('checkbox') && 
-                                instrumentsContent.includes('checkedBox');
-            const hasRadioButtons = instrumentsContent.includes('radioButton') && 
+            const hasRadioButtons = instrumentsContent.includes('radioButton') &&
                                   instrumentsContent.includes('selectedRadio');
+            const hasRadioButtonsForInstruments = instrumentsContent.includes('radioDot');
             const hasClearButton = instrumentsContent.includes('Clear All');
             const hasContinueButton = instrumentsContent.includes('Continue');
             const hasSelectionCount = instrumentsContent.includes('selected)');
             
-            console.log(`   Checkboxes for instruments: ${hasCheckboxes ? '✅' : '❌'}`);
+            console.log(`   Radio buttons for instruments: ${hasRadioButtonsForInstruments ? '✅' : '❌'}`);
             console.log(`   Radio buttons for precision: ${hasRadioButtons ? '✅' : '❌'}`);
             console.log(`   Clear All button: ${hasClearButton ? '✅' : '❌'}`);
             console.log(`   Continue button: ${hasContinueButton ? '✅' : '❌'}`);
@@ -124,9 +123,9 @@ function testT38() {
         
         // Step 7: Verify T38 DoD
         console.log('\nStep 7: Verifying T38 DoD...');
-        console.log('   Target: Multi-select (drums/bass/guitar/piano/chords) & options (separate/precision)');
+        console.log('   Target: Single-select (drums/bass/guitar/piano/chords) & options (separate/precision)');
         console.log('   DoD: State persists in local store');
-        console.log('   Test: Navigate away and back, selections preserved');
+        console.log('   Test: Navigate away and back, selection preserved');
         
         const allChecksPass = hasInstrumentsPage && 
                              fs.existsSync(layoutPath) && 
@@ -136,7 +135,7 @@ function testT38() {
         if (allChecksPass) {
             console.log('\n✅ T38 DoD SATISFIED!');
             console.log('   ✅ Instrument selection page implemented');
-            console.log('   ✅ Multi-select functionality for instruments');
+            console.log('   ✅ Single-select functionality for instruments');
             console.log('   ✅ Separate and precision options');
             console.log('   ✅ Local storage persistence');
             console.log('   ✅ UI navigation ready');
@@ -152,7 +151,7 @@ function testT38() {
         console.log('   2. Press "w" for web version');
         console.log('   3. Sign in to the app');
         console.log('   4. Click "Select Instruments" button');
-        console.log('   5. Select multiple instruments (drums, bass, guitar, etc.)');
+        console.log('   5. Select one instrument (drums, bass, guitar, etc.)');
         console.log('   6. Toggle "Source Separation" option');
         console.log('   7. Choose precision level (fast/balanced/high)');
         console.log('   8. Check browser console for:');
@@ -160,7 +159,7 @@ function testT38() {
         console.log('      - "💾 T38: Selections saved to local store: [data]"');
         console.log('   9. Navigate to another page (e.g., Upload Audio)');
         console.log('   10. Return to "Select Instruments"');
-        console.log('   11. Verify all selections are preserved');
+        console.log('   11. Verify selection is preserved');
         console.log('   12. Check browser localStorage for saved data');
         
         console.log('\n🎉 T38 Test completed!');
@@ -168,7 +167,7 @@ function testT38() {
         // Technical Details
         console.log('\n🔧 Technical Implementation:');
         console.log('   • Storage: AsyncStorage for cross-platform persistence');
-        console.log('   • Multi-select: Array-based instrument selection');
+        console.log('   • Single-select: Radio button instrument selection');
         console.log('   • Options: Boolean for separation, enum for precision');
         console.log('   • UI Components: Custom checkboxes and radio buttons');
         console.log('   • State Management: React hooks with useEffect');
@@ -176,11 +175,11 @@ function testT38() {
         
         // Features
         console.log('\n🎯 Features Implemented:');
-        console.log('   • Multi-instrument selection (drums/bass/guitar/piano/chords)');
+        console.log('   • Single-instrument selection (drums/bass/guitar/piano/chords)');
         console.log('   • Source separation toggle option');
         console.log('   • Precision level selection (fast/balanced/high)');
         console.log('   • Local storage persistence');
-        console.log('   • Selection count display');
+        console.log('   • Selected instrument display');
         console.log('   • Clear all functionality');
         console.log('   • Responsive UI design');
         console.log('   • Console logging for debugging');
