@@ -49,6 +49,10 @@ export default function HomeScreen() {
     router.push('/upload');
   };
 
+  const navigateToInstruments = () => {
+    router.push('/instruments');
+  };
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -94,6 +98,13 @@ export default function HomeScreen() {
               <Text style={styles.buttonText}>Upload Audio</Text>
             </TouchableOpacity>
 
+            <TouchableOpacity
+              style={styles.button}
+              onPress={navigateToInstruments}
+            >
+              <Text style={styles.buttonText}>Select Instruments</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity style={styles.button}>
               <Text style={styles.buttonText}>Browse Library</Text>
             </TouchableOpacity>
@@ -115,7 +126,7 @@ export default function HomeScreen() {
         )}
       </View>
       
-      <Text style={styles.version}>T37 - File Upload Integration</Text>
+      <Text style={styles.version}>T38 - Instrument Selection Integration</Text>
       <StatusBar style="auto" />
     </View>
   );

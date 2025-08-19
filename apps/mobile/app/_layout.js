@@ -57,6 +57,19 @@ export default function RootLayout() {
             },
           }}
         />
+        <Stack.Screen
+          name="instruments"
+          options={{
+            title: 'Select Instruments',
+            headerStyle: {
+              backgroundColor: '#f5f5f5',
+            },
+            headerTintColor: '#333',
+            headerTitleStyle: {
+              fontWeight: 'bold',
+            },
+          }}
+        />
       </Stack>
     </AuthProvider>
   );
