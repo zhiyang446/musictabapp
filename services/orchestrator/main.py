@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 import os
 import uuid
+import re
 from dotenv import load_dotenv
 from db import db_client
 from auth import jwt_bearer, jwt_bearer_optional, get_current_user_id
@@ -16,6 +17,33 @@ from celery_client import send_process_job_task
 
 # Load environment variables
 load_dotenv()
+
+# Utility functions
+def validate_youtube_url(url: str) -> bool:
+    """
+    Validate if the provided URL is a valid YouTube URL
+    Supports various YouTube URL formats:
+    - https://www.youtube.com/watch?v=VIDEO_ID
+    - https://youtube.com/watch?v=VIDEO_ID
+    - https://youtu.be/VIDEO_ID
+    - https://m.youtube.com/watch?v=VIDEO_ID
+    """
+    if not url or not isinstance(url, str):
+        return False
+
+    # YouTube URL patterns
+    youtube_patterns = [
+        r'^https?://(www\.)?youtube\.com/watch\?v=[\w-]+',
+        r'^https?://(www\.)?youtu\.be/[\w-]+',
+        r'^https?://m\.youtube\.com/watch\?v=[\w-]+',
+        r'^https?://youtube\.com/watch\?v=[\w-]+',
+    ]
+
+    for pattern in youtube_patterns:
+        if re.match(pattern, url):
+            return True
+
+    return False
 
 # Request/Response models
 class UploadUrlRequest(BaseModel):
@@ -209,6 +237,11 @@ async def create_job(
 
     if request.source_type == 'youtube' and not request.youtube_url:
         raise HTTPException(status_code=400, detail="youtube_url required for youtube mode")
+
+    # T44: Validate YouTube URL format
+    if request.source_type == 'youtube' and request.youtube_url:
+        if not validate_youtube_url(request.youtube_url):
+            raise HTTPException(status_code=400, detail="Invalid YouTube URL format")
 
     if not request.instruments or len(request.instruments) == 0:
         raise HTTPException(status_code=400, detail="At least one instrument must be specified")
