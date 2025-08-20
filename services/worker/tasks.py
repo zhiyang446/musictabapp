@@ -358,8 +358,52 @@ def process_job(job_id, job_data=None):
             print(f"⚠️  T47: Audio preprocessing failed: {preprocessing_error}")
             # Continue with job processing even if preprocessing fails
 
-        # Step 4: Additional processing
-        update_progress(85, "RUNNING", "Phase 3: Audio analysis")
+        # Step 4: T48 Source Separation (Optional) - Progress 75%
+        update_progress(75, "RUNNING", "Phase 3: Source separation")
+
+        try:
+            # Get options from job data
+            job_options = job_data.get('options', {})
+            separate_sources = job_options.get('separate', False)
+
+            print(f"🎵 T48: Source separation option: {separate_sources}")
+
+            if separate_sources:
+                print(f"🔄 T48: Source separation enabled - processing...")
+
+                # Import source separator
+                from source_separator import process_with_separation
+
+                # Get preprocessed audio path (for now use source_path as placeholder)
+                audio_path = job_data.get('source_object_path', 'placeholder_audio.wav')
+
+                # Process with separation
+                separation_result = process_with_separation(
+                    input_path=audio_path,
+                    job_id=job_id,
+                    separate=True,
+                    sources=['vocals', 'drums', 'bass', 'other']
+                )
+
+                if separation_result['success']:
+                    print(f"✅ T48: Source separation completed")
+                    if separation_result.get('separation_enabled'):
+                        sep_info = separation_result['separation_result']
+                        print(f"   Generated {len(sep_info['separated_files'])} source files")
+                    else:
+                        print(f"   {separation_result.get('note', 'Fallback to original')}")
+                else:
+                    print(f"⚠️  T48: Source separation failed, using original audio")
+            else:
+                print(f"⏭️  T48: Source separation disabled, using original audio")
+
+        except Exception as separation_error:
+            print(f"⚠️  T48: Source separation failed: {separation_error}")
+            print(f"   Continuing with original audio...")
+            # Continue with job processing even if separation fails
+
+        # Step 5: Additional processing
+        update_progress(85, "RUNNING", "Phase 4: Audio analysis")
         time.sleep(1)  # Simulate additional processing
 
         # Step 4: Finalization - Progress 100%
