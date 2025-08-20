@@ -440,6 +440,30 @@ def process_job(job_id, job_data=None):
                         print(f"   MIDI file: {midi_result['midi_filename']}")
                         print(f"   Method: {midi_result['method']}")
                         print(f"   Total notes: {midi_result['total_onsets']}")
+
+                        # T50: Generate MusicXML from drum data
+                        print(f"🎼 T50: Generating MusicXML from drum data")
+
+                        try:
+                            from musicxml_generator import process_drums_to_musicxml
+
+                            musicxml_result = process_drums_to_musicxml(
+                                drum_onsets=drum_result['quantized_onsets'],
+                                bpm=drum_result['bpm'],
+                                job_id=job_id
+                            )
+
+                            if musicxml_result['success']:
+                                print(f"✅ T50: MusicXML generation completed")
+                                print(f"   MusicXML file: {musicxml_result['musicxml_filename']}")
+                                print(f"   Method: {musicxml_result['method']}")
+                                print(f"   File size: {musicxml_result['file_size']:,} bytes")
+                            else:
+                                print(f"⚠️  T50: MusicXML generation failed")
+
+                        except Exception as musicxml_error:
+                            print(f"⚠️  T50: MusicXML processing failed: {musicxml_error}")
+
                     else:
                         print(f"⚠️  T49: MIDI generation failed")
                 else:
