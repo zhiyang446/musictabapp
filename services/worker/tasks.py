@@ -103,46 +103,69 @@ def process_audio(self, job_id, source_path, instruments, options=None):
 @app.task(bind=True)
 def download_youtube(self, job_id, youtube_url, options=None):
     """
-    Download YouTube video and extract audio (placeholder)
+    T45 - Download YouTube video and extract audio using yt-dlp
     """
     try:
+        from youtube_downloader import create_youtube_downloader
+        import logging
+
+        # Set up logging
+        logging.basicConfig(level=logging.INFO)
+        logger = logging.getLogger(__name__)
+
+        logger.info(f"🎬 T45: Starting YouTube download task for job {job_id}")
+
         self.update_state(
             state="PROGRESS",
-            meta={"current": 10, "total": 100, "status": "Starting YouTube download..."}
+            meta={"current": 10, "total": 100, "status": "Initializing YouTube downloader..."}
         )
-        
-        # Simulate YouTube download steps
-        steps = [
-            ("Fetching video metadata", 20),
-            ("Downloading video", 50),
-            ("Extracting audio", 80),
-            ("Uploading to storage", 100)
-        ]
-        
-        for step_name, progress in steps:
-            time.sleep(1)
-            self.update_state(
-                state="PROGRESS",
-                meta={
-                    "current": progress,
-                    "total": 100,
-                    "status": step_name,
-                    "job_id": job_id,
-                    "youtube_url": youtube_url
-                }
-            )
-        
-        result = {
+
+        # Create YouTube downloader instance
+        downloader = create_youtube_downloader()
+
+        self.update_state(
+            state="PROGRESS",
+            meta={"current": 20, "total": 100, "status": "Starting YouTube audio download..."}
+        )
+
+        # Process YouTube audio (download, convert, upload)
+        target_format = options.get('audio_format', 'm4a') if options else 'm4a'
+
+        self.update_state(
+            state="PROGRESS",
+            meta={"current": 30, "total": 100, "status": "Downloading audio from YouTube..."}
+        )
+
+        # Use the YouTube downloader to process the audio
+        result = downloader.process_youtube_audio(
+            youtube_url=youtube_url,
+            job_id=job_id,
+            target_format=target_format
+        )
+
+        self.update_state(
+            state="PROGRESS",
+            meta={"current": 100, "total": 100, "status": "YouTube audio processing completed"}
+        )
+
+        # Return success result
+        final_result = {
             "job_id": job_id,
             "youtube_url": youtube_url,
             "status": "completed",
-            "audio_path": f"audio-input/{job_id}/extracted_audio.wav",
+            "storage_path": result['storage_path'],
+            "video_title": result['video_title'],
+            "duration": result['duration'],
+            "file_size": result['file_size'],
+            "format": result['format'],
             "timestamp": datetime.utcnow().isoformat()
         }
-        
-        return result
-        
+
+        logger.info(f"🎉 T45: YouTube download task completed for job {job_id}")
+        return final_result
+
     except Exception as exc:
+        logger.error(f"❌ T45: YouTube download task failed for job {job_id}: {str(exc)}")
         self.update_state(
             state="FAILURE",
             meta={"error": str(exc), "job_id": job_id, "youtube_url": youtube_url}
@@ -211,11 +234,11 @@ def generate_tabs(self, job_id, audio_path, instruments, options=None):
 @app.task
 def process_job(job_id, job_data=None):
     """
-    Main job processing task - T32 with progress reporting
+    Main job processing task - T32/T45 with progress reporting and YouTube support
     Updates progress: 0 → 25 → 60 → 100
     """
     try:
-        print(f"🔄 T32: Processing job {job_id} with progress reporting")
+        print(f"🔄 T32/T45: Processing job {job_id} with progress reporting")
 
         # Import database client
         import os
@@ -231,6 +254,13 @@ def process_job(job_id, job_data=None):
             raise Exception("Missing Supabase configuration")
 
         supabase = create_client(supabase_url, supabase_service_key)
+
+        # Get job data from database if not provided
+        if not job_data:
+            job_result = supabase.table("jobs").select("*").eq("id", job_id).single().execute()
+            if not job_result.data:
+                raise Exception(f"Job {job_id} not found")
+            job_data = job_result.data
 
         def update_progress(progress, status="RUNNING", message=""):
             """Helper function to update job progress"""
@@ -254,16 +284,49 @@ def process_job(job_id, job_data=None):
         print(f"📋 Starting job {job_id} processing")
         update_progress(0, "RUNNING", "Initializing job")
 
-        # Simulate initialization phase
-        time.sleep(1)
+        source_type = job_data.get('source_type', 'upload')
+        print(f"📋 Job source type: {source_type}")
 
-        # Step 2: Phase 1 - Progress 25%
-        update_progress(25, "RUNNING", "Phase 1: Setup and validation")
-        time.sleep(2)  # Simulate some work
+        # Step 2: Handle different source types - Progress 25%
+        update_progress(25, "RUNNING", "Phase 1: Source processing")
+
+        if source_type == 'youtube':
+            # T45: Handle YouTube source
+            print(f"🎬 T45: Processing YouTube job {job_id}")
+            youtube_url = job_data.get('youtube_url')
+
+            if not youtube_url:
+                raise Exception("YouTube URL is required for YouTube jobs")
+
+            # Call YouTube download task
+            from youtube_downloader import create_youtube_downloader
+            downloader = create_youtube_downloader()
+
+            update_progress(30, "RUNNING", "Downloading audio from YouTube")
+
+            youtube_result = downloader.process_youtube_audio(
+                youtube_url=youtube_url,
+                job_id=job_id,
+                target_format='m4a'
+            )
+
+            # Update job with source_object_path
+            supabase.table("jobs").update({
+                "source_object_path": youtube_result['storage_path']
+            }).eq("id", job_id).execute()
+
+            print(f"✅ T45: YouTube audio downloaded to {youtube_result['storage_path']}")
+
+        elif source_type == 'upload':
+            # Handle upload source (existing logic)
+            print(f"📁 Processing upload job {job_id}")
+            time.sleep(1)  # Simulate upload processing
+        else:
+            raise Exception(f"Unsupported source type: {source_type}")
 
         # Step 3: Phase 2 - Progress 60%
-        update_progress(60, "RUNNING", "Phase 2: Main processing")
-        time.sleep(2)  # Simulate more work
+        update_progress(60, "RUNNING", "Phase 2: Audio analysis and processing")
+        time.sleep(2)  # Simulate audio processing
 
         # Step 4: Finalization - Progress 100%
         print(f"📋 Finalizing job {job_id}")
