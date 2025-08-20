@@ -91,9 +91,62 @@ export default function JobDetailsScreen() {
     }
   };
 
+  const downloadArtifact = async (artifact) => {
+    try {
+      console.log('⬇️ T42/T43: Processing artifact:', artifact.id, 'Kind:', artifact.kind);
+
+      // T43: For PDF artifacts, use in-app preview instead of external download
+      if (artifact.kind === 'pdf') {
+        console.log('📄 T43: Opening PDF in in-app viewer');
+        router.push({
+          pathname: '/pdf-viewer',
+          params: {
+            artifactId: artifact.id,
+            fileName: getArtifactDisplayName(artifact)
+          }
+        });
+        return;
+      }
+
+      // T42: For non-PDF artifacts, continue with external download
+      console.log('⬇️ T42: Downloading non-PDF artifact externally');
+
+      const response = await fetch(`${ORCHESTRATOR_URL}/artifacts/${artifact.id}/signed-url`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      console.log('⬇️ T42: Signed URL response status:', response.status);
+
+      if (response.ok) {
+        const urlData = await response.json();
+        console.log('✅ T42: Signed URL obtained:', urlData.file_name);
+
+        // Open the signed URL in the system browser for download
+        const supported = await Linking.canOpenURL(urlData.signed_url);
+        if (supported) {
+          await Linking.openURL(urlData.signed_url);
+          console.log('✅ T42: Download opened in browser');
+        } else {
+          throw new Error('Cannot open download URL');
+        }
+      } else {
+        const errorData = await response.json();
+        console.error('❌ T42: Failed to get signed URL:', response.status, errorData);
+        Alert.alert('Download Error', errorData.message || 'Failed to get download URL');
+      }
+    } catch (err) {
+      console.error('❌ T42/T43: Exception processing artifact:', err);
+      Alert.alert('Error', err.message || 'Failed to process artifact');
+    }
+  };
+
   useEffect(() => {
     if (isAuthenticated && jobId) {
       fetchJobDetails();
+      fetchJobArtifacts();
 
       // T41: Set up Realtime subscription for job updates
       console.log('🔄 T41: Setting up Realtime subscription for job:', jobId);
@@ -174,6 +227,32 @@ export default function JobDetailsScreen() {
       case 'canceled': return '🚫';
       default: return '❓';
     }
+  };
+
+  const getArtifactIcon = (kind) => {
+    switch (kind?.toLowerCase()) {
+      case 'midi': return '🎹';
+      case 'musicxml': return '🎼';
+      case 'pdf': return '📄';
+      case 'preview': return '🎵';
+      case 'text': return '📝';
+      default: return '📦';
+    }
+  };
+
+  const getArtifactDisplayName = (artifact) => {
+    const kindName = {
+      'midi': 'MIDI File',
+      'musicxml': 'MusicXML Score',
+      'pdf': 'PDF Score',
+      'preview': 'Audio Preview',
+      'text': 'Text File'
+    }[artifact.kind] || artifact.kind;
+
+    if (artifact.instrument) {
+      return `${kindName} (${artifact.instrument})`;
+    }
+    return kindName;
   };
 
   if (!isAuthenticated) {
@@ -333,6 +412,68 @@ export default function JobDetailsScreen() {
             <Text style={styles.errorMessage}>{job.error_message}</Text>
           </View>
         )}
+
+        {/* Artifacts Section - T42 */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Artifacts</Text>
+            <TouchableOpacity onPress={fetchJobArtifacts}>
+              <Text style={styles.refreshText}>🔄</Text>
+            </TouchableOpacity>
+          </View>
+
+          {artifactsLoading ? (
+            <View style={styles.artifactsLoading}>
+              <ActivityIndicator size="small" color="#007AFF" />
+              <Text style={styles.loadingText}>Loading artifacts...</Text>
+            </View>
+          ) : artifactsError ? (
+            <View style={styles.artifactsError}>
+              <Text style={styles.errorText}>Error: {artifactsError}</Text>
+              <TouchableOpacity
+                style={[styles.button, styles.smallButton]}
+                onPress={fetchJobArtifacts}
+              >
+                <Text style={styles.buttonText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : artifacts.length === 0 ? (
+            <View style={styles.noArtifacts}>
+              <Text style={styles.noArtifactsIcon}>📭</Text>
+              <Text style={styles.noArtifactsText}>
+                {job.status === 'SUCCEEDED'
+                  ? 'No artifacts found for this job'
+                  : 'Artifacts will appear when the job completes'}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.artifactsList}>
+              {artifacts.map((artifact, index) => (
+                <TouchableOpacity
+                  key={artifact.id}
+                  style={styles.artifactItem}
+                  onPress={() => downloadArtifact(artifact)}
+                >
+                  <View style={styles.artifactInfo}>
+                    <Text style={styles.artifactIcon}>
+                      {getArtifactIcon(artifact.kind)}
+                    </Text>
+                    <View style={styles.artifactDetails}>
+                      <Text style={styles.artifactName}>
+                        {getArtifactDisplayName(artifact)}
+                      </Text>
+                      <Text style={styles.artifactMeta}>
+                        {artifact.bytes ? `${Math.round(artifact.bytes / 1024)} KB` : 'Unknown size'} •
+                        {artifact.created_at ? new Date(artifact.created_at).toLocaleDateString() : 'Unknown date'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.downloadIcon}>⬇️</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
 
         {/* Actions */}
         <View style={styles.section}>
@@ -525,5 +666,81 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 20,
+  },
+  // T42 Artifacts Styles
+  refreshText: {
+    fontSize: 16,
+    color: '#007AFF',
+  },
+  artifactsLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+  },
+  artifactsError: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  smallButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginTop: 10,
+  },
+  noArtifacts: {
+    alignItems: 'center',
+    paddingVertical: 30,
+  },
+  noArtifactsIcon: {
+    fontSize: 48,
+    marginBottom: 10,
+  },
+  noArtifactsText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  artifactsList: {
+    marginTop: 10,
+  },
+  artifactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 15,
+    paddingHorizontal: 10,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  artifactInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  artifactIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  artifactDetails: {
+    flex: 1,
+  },
+  artifactName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  artifactMeta: {
+    fontSize: 12,
+    color: '#666',
+  },
+  downloadIcon: {
+    fontSize: 20,
+    color: '#007AFF',
+    marginLeft: 10,
   },
 });

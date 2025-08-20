@@ -57,9 +57,7 @@ export default function HomeScreen() {
     router.push('/jobs');
   };
 
-  const navigateToTestRealtime = () => {
-    router.push('/test-realtime');
-  };
+
 
   if (loading) {
     return (
@@ -118,13 +116,6 @@ export default function HomeScreen() {
               onPress={navigateToJobs}
             >
               <Text style={styles.buttonText}>My Jobs</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.button, styles.testButton]}
-              onPress={navigateToTestRealtime}
-            >
-              <Text style={styles.buttonText}>🧪 Test Realtime</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -210,9 +201,7 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     alignItems: 'center',
   },
-  testButton: {
-    backgroundColor: '#FF9500',
-  },
+
   buttonText: {
     color: 'white',
     fontSize: 16,
