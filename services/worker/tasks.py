@@ -402,8 +402,57 @@ def process_job(job_id, job_data=None):
             print(f"   Continuing with original audio...")
             # Continue with job processing even if separation fails
 
-        # Step 5: Additional processing
-        update_progress(85, "RUNNING", "Phase 4: Audio analysis")
+        # Step 5: T49 Drum Detection and MIDI Generation - Progress 85%
+        update_progress(85, "RUNNING", "Phase 4: Drum detection and MIDI generation")
+
+        try:
+            # Check if drums are in the requested instruments
+            instruments = job_data.get('instruments', [])
+            if 'drums' in instruments:
+                print(f"🥁 T49: Drum processing requested")
+
+                # Import drum processing modules
+                from drum_detector import create_drum_detector
+                from midi_generator import process_drums_to_midi
+
+                # Get audio file path (use preprocessed audio if available)
+                audio_path = job_data.get('source_object_path', 'placeholder_audio.wav')
+
+                # Create drum detector
+                detector = create_drum_detector()
+
+                # Process drum track
+                drum_result = detector.process_drum_track(audio_path, bpm=120.0)
+
+                if drum_result['success']:
+                    print(f"✅ T49: Drum detection completed")
+                    print(f"   Total onsets: {drum_result['total_onsets']}")
+
+                    # Generate MIDI
+                    midi_result = process_drums_to_midi(
+                        drum_onsets=drum_result['quantized_onsets'],
+                        bpm=drum_result['bpm'],
+                        job_id=job_id
+                    )
+
+                    if midi_result['success']:
+                        print(f"✅ T49: MIDI generation completed")
+                        print(f"   MIDI file: {midi_result['midi_filename']}")
+                        print(f"   Method: {midi_result['method']}")
+                        print(f"   Total notes: {midi_result['total_onsets']}")
+                    else:
+                        print(f"⚠️  T49: MIDI generation failed")
+                else:
+                    print(f"⚠️  T49: Drum detection failed")
+            else:
+                print(f"⏭️  T49: Drums not requested, skipping drum processing")
+
+        except Exception as drum_error:
+            print(f"⚠️  T49: Drum processing failed: {drum_error}")
+            # Continue with job processing even if drum processing fails
+
+        # Step 6: Additional processing
+        update_progress(90, "RUNNING", "Phase 5: Finalization")
         time.sleep(1)  # Simulate additional processing
 
         # Step 4: Finalization - Progress 100%
