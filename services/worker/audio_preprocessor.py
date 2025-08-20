@@ -11,10 +11,19 @@ import logging
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 import ffmpeg
-from pydub import AudioSegment
-from pydub.utils import which
 
 logger = logging.getLogger(__name__)
+
+# Try to import pydub, but don't fail if it's not available
+try:
+    from pydub import AudioSegment
+    from pydub.utils import which
+    PYDUB_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"pydub not available: {e}")
+    AudioSegment = None
+    which = None
+    PYDUB_AVAILABLE = False
 
 
 class AudioPreprocessor:
@@ -50,9 +59,34 @@ class AudioPreprocessor:
     
     def _check_ffmpeg(self):
         """Check if ffmpeg is available"""
-        ffmpeg_path = which("ffmpeg")
+        # Try multiple ways to find ffmpeg
+        ffmpeg_path = None
+
+        # Method 1: Use pydub's which if available
+        if PYDUB_AVAILABLE and which:
+            ffmpeg_path = which("ffmpeg")
+
+        # Method 2: Try common installation paths
         if not ffmpeg_path:
-            logger.warning("ffmpeg not found in PATH, some features may not work")
+            common_paths = [
+                "C:\\ffmpeg\\bin\\ffmpeg.exe",
+                "ffmpeg.exe",
+                "ffmpeg"
+            ]
+
+            for path in common_paths:
+                try:
+                    import subprocess
+                    result = subprocess.run([path, '-version'],
+                                          capture_output=True, timeout=5)
+                    if result.returncode == 0:
+                        ffmpeg_path = path
+                        break
+                except:
+                    continue
+
+        if not ffmpeg_path:
+            logger.warning("ffmpeg not found, will use ffmpeg-python with system PATH")
         else:
             logger.info(f"ffmpeg found at: {ffmpeg_path}")
     
@@ -187,39 +221,15 @@ class AudioPreprocessor:
             logger.info(f"      {input_info['sample_rate']}Hz → {self.target_sample_rate}Hz")
             logger.info(f"      {input_info['channels']} channels → {target_channels} channels")
             
-            # Build ffmpeg command
-            input_stream = ffmpeg.input(input_path)
-            
-            # Apply audio filters
-            audio_filters = []
-            
-            # Resample to target sample rate
-            if input_info['sample_rate'] != self.target_sample_rate:
-                audio_filters.append(f'aresample={self.target_sample_rate}')
-            
-            # Convert channels
-            if input_info['channels'] != target_channels:
-                if target_channels == 1:
-                    audio_filters.append('pan=mono|c0=0.5*c0+0.5*c1')
-                elif target_channels == 2 and input_info['channels'] == 1:
-                    audio_filters.append('pan=stereo|c0=c0|c1=c0')
-            
-            # Apply filters if any
-            if audio_filters:
-                output_stream = input_stream.audio.filter(','.join(audio_filters))
-            else:
-                output_stream = input_stream.audio
-            
-            # Output to wav format
-            output_stream = ffmpeg.output(
-                output_stream,
+            # Use simpler ffmpeg approach
+            output_stream = ffmpeg.input(input_path).output(
                 output_path,
                 acodec='pcm_s16le',  # 16-bit PCM
-                ar=self.target_sample_rate,
-                ac=target_channels,
-                f='wav'
+                ar=self.target_sample_rate,  # Sample rate
+                ac=target_channels,  # Channel count
+                f='wav'  # WAV format
             )
-            
+
             # Run ffmpeg
             ffmpeg.run(output_stream, overwrite_output=True, quiet=True)
             
@@ -247,17 +257,20 @@ class AudioPreprocessor:
                               preserve_channels: bool = False) -> Dict[str, Any]:
         """
         Alternative preprocessing using pydub (fallback method)
-        
+
         Args:
             input_path: Path to input audio file
             job_id: Job ID for output file naming
             preserve_channels: Whether to preserve original channel count
-            
+
         Returns:
             Dict containing preprocessing results
         """
+        if not PYDUB_AVAILABLE:
+            raise Exception("pydub not available for audio preprocessing")
+
         logger.info(f"🔄 T47: Using pydub for audio preprocessing")
-        
+
         try:
             # Load audio with pydub
             audio = AudioSegment.from_file(input_path)
