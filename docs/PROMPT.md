@@ -1,7 +1,3 @@
-姐妹我懂你要的格局～不是只会“动次打次”，而是给任何大模型（Cursor、VS Code Augment、别家 IDE）一份“通用、可迁移、可扩展”的**生成鼓谱 MusicXML 的系统提示**。下面这份 **`PROMPT.md`** 直接拿去用就行：它定义了输入数据结构（从你自己的音频分析得到的 JSON）、严格的输出规范（MusicXML/MIDI）、节拍/连音/分声部/镲类记谱等规则、误差处理与验证要求，还有可选的 few-shot 示例。放在仓库根目录或 `docs/` 都可以，然后让所有模型在生成前先读取这份规范。
-
----
-
 # PROMPT.md — Drum Score Generator (MusicXML/MIDI)
 
 ## 目标
