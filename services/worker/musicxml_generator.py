@@ -53,11 +53,11 @@ class MusicXMLGenerator:
         """
         self.temp_dir = temp_dir or tempfile.mkdtemp(prefix="musicxml_gen_")
         
-        # Drum note mappings (MIDI note -> music21 pitch)
+        # Drum note mappings for percussion staff (MIDI note -> staff position)
         self.drum_pitches = {
-            36: 'C4',   # Kick drum -> C4
-            38: 'D4',   # Snare drum -> D4
-            42: 'F#4'   # Hi-hat -> F#4
+            36: 'F4',   # Kick drum -> F4 (below staff)
+            38: 'B4',   # Snare drum -> B4 (middle line)
+            42: 'F5'    # Hi-hat -> F5 (above staff)
         }
         
         # Drum names for display
@@ -124,10 +124,15 @@ class MusicXMLGenerator:
             drum_part = stream.Part()
             drum_part.partName = 'Drums'
             
-            # Set up percussion instrument
+            # Set up percussion instrument and clef
             perc_instrument = instrument.Percussion()
             perc_instrument.instrumentName = 'Drum Kit'
             drum_part.append(perc_instrument)
+
+            # Add percussion clef
+            from music21 import clef
+            perc_clef = clef.PercussionClef()
+            drum_part.append(perc_clef)
             
             # Collect all events with timing
             all_events = []
@@ -165,14 +170,20 @@ class MusicXMLGenerator:
             else:
                 # Add notes to the part
                 for event in all_events:
-                    # Create note
+                    # Create unpitched note for drums
                     drum_note = note.Note(event['pitch'])
                     drum_note.quarterLength = 0.25  # Sixteenth note duration
-                    
+
+                    # Set notehead style based on drum type
+                    if event['midi_note'] == 42:  # Hi-hat
+                        drum_note.notehead = 'x'  # X notehead for cymbals
+                    else:  # Kick and snare
+                        drum_note.notehead = 'normal'  # Normal notehead for drums
+
                     # Add to part at specific offset
                     beat_offset = event['time'] * (bpm / 60.0)  # Convert to beats
                     drum_part.insert(beat_offset, drum_note)
-                    
+
                     logger.debug(f"   Added {event['drum']} at {event['time']:.2f}s (beat {beat_offset:.2f})")
             
             # Add bar lines every 4 beats
@@ -293,27 +304,30 @@ class MusicXMLGenerator:
       </direction>
       <note>
         <unpitched>
-          <display-step>C</display-step>
-          <display-octave>4</display-octave>
-        </unpitched>
-        <duration>1</duration>
-        <type>quarter</type>
-      </note>
-      <note>
-        <unpitched>
-          <display-step>D</display-step>
-          <display-octave>4</display-octave>
-        </unpitched>
-        <duration>1</duration>
-        <type>quarter</type>
-      </note>
-      <note>
-        <unpitched>
           <display-step>F</display-step>
           <display-octave>4</display-octave>
         </unpitched>
         <duration>1</duration>
         <type>quarter</type>
+        <notehead>normal</notehead>
+      </note>
+      <note>
+        <unpitched>
+          <display-step>B</display-step>
+          <display-octave>4</display-octave>
+        </unpitched>
+        <duration>1</duration>
+        <type>quarter</type>
+        <notehead>normal</notehead>
+      </note>
+      <note>
+        <unpitched>
+          <display-step>F</display-step>
+          <display-octave>5</display-octave>
+        </unpitched>
+        <duration>1</duration>
+        <type>quarter</type>
+        <notehead>x</notehead>
       </note>
       <note>
         <rest/>

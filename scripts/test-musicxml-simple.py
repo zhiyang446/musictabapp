@@ -132,16 +132,16 @@ def create_simple_musicxml(output_path):
       </direction>
       <note>
         <unpitched>
-          <display-step>C</display-step>
+          <display-step>F</display-step>
           <display-octave>4</display-octave>
         </unpitched>
         <duration>4</duration>
         <type>quarter</type>
-        <notehead>x</notehead>
+        <notehead>normal</notehead>
       </note>
       <note>
         <unpitched>
-          <display-step>D</display-step>
+          <display-step>B</display-step>
           <display-octave>4</display-octave>
         </unpitched>
         <duration>4</duration>
@@ -151,7 +151,7 @@ def create_simple_musicxml(output_path):
       <note>
         <unpitched>
           <display-step>F</display-step>
-          <display-octave>4</display-octave>
+          <display-octave>5</display-octave>
         </unpitched>
         <duration>4</duration>
         <type>quarter</type>
@@ -159,7 +159,7 @@ def create_simple_musicxml(output_path):
       </note>
       <note>
         <unpitched>
-          <display-step>D</display-step>
+          <display-step>B</display-step>
           <display-octave>4</display-octave>
         </unpitched>
         <duration>4</duration>
