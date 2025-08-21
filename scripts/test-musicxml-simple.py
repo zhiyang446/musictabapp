@@ -29,22 +29,22 @@ def test_musicxml_simple():
         
         print("✅ MusicXML generator imported successfully")
         
-        # Create simple "动次打次" pattern
-        # 动 = Kick (底鼓)
-        # 次 = Hi-hat (踩镲)
-        # 打 = Snare (军鼓)
-        # Pattern: 动次打次 (Kick-Hihat-Snare-Hihat)
+        # Create standard "动次打次" pattern like the reference image
+        # 动 = Kick (底鼓) - beats 1, 3
+        # 次 = Hi-hat (踩镲) - continuous 8th notes
+        # 打 = Snare (军鼓) - beats 2, 4
+        # Standard rock/pop drum pattern
         if np:
             drum_onsets = {
-                'kick': np.array([0.0]),                # 动 (beat 1)
-                'hihat': np.array([0.5, 1.5]),          # 次 次 (beats 1.5, 3.5)
-                'snare': np.array([1.0])                # 打 (beat 2)
+                'kick': np.array([0.0, 2.0]),                           # 动 动 (beats 1, 3)
+                'hihat': np.array([0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5]),  # 次次次次次次次次 (8th notes)
+                'snare': np.array([1.0, 3.0])                          # 打 打 (beats 2, 4)
             }
         else:
             drum_onsets = {
-                'kick': [0.0],                          # 动
-                'hihat': [0.5, 1.5],                    # 次 次
-                'snare': [1.0]                          # 打
+                'kick': [0.0, 2.0],                                     # 动 动
+                'hihat': [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5],    # 次次次次次次次次
+                'snare': [1.0, 3.0]                                     # 打 打
             }
         
         print("✅ Test drum data created")
