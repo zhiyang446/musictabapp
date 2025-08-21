@@ -63,12 +63,20 @@ class MusicXMLGenerator:
         """
         self.temp_dir = temp_dir or tempfile.mkdtemp(prefix="musicxml_gen_")
         
-        # Standard drum kit mapping for percussion staff
-        # Using standard GM percussion mapping with proper staff positions
+        # Standard drum kit mapping according to MusicXML 4.0 tutorial
+        # Using official MusicXML percussion mapping with proper staff positions
+        # Reference: https://www.w3.org/2021/06/musicxml40/tutorial/percussion/
         self.drum_pitches = {
-            36: 'C4',   # Kick drum -> C4 (space below staff)
-            38: 'E4',   # Snare drum -> E4 (first line)
-            42: 'G5'    # Hi-hat -> G5 (above staff)
+            36: 'A2',   # Kick drum -> A2 (bottom space in bass clef)
+            38: 'E3',   # Snare drum -> E3 (middle space in bass clef)
+            42: 'B3'    # Hi-hat -> B3 (top space in bass clef)
+        }
+
+        # MIDI mappings according to MusicXML tutorial
+        self.drum_midi_mapping = {
+            36: 37,     # Kick drum -> MIDI 37
+            38: 39,     # Snare drum -> MIDI 39
+            42: 43      # Hi-hat -> MIDI 43
         }
         
         # Drum names for display
@@ -213,29 +221,28 @@ class MusicXMLGenerator:
                     for note_info in sorted(measures_dict[measure_num], key=lambda x: x['beat']):
                         event = note_info['event']
 
-                        # Create unpitched note for proper drum notation
-                        # According to MusicXML 4.0: "If percussion clef is used, the display-step
-                        # and display-octave elements are interpreted as if in treble clef,
-                        # with a G in octave 4 on line 2."
+                        # Create unpitched note according to MusicXML 4.0 official tutorial
+                        # Reference: https://www.w3.org/2021/06/musicxml40/tutorial/percussion/
+                        # Using bass clef positions as shown in the tutorial example
                         if event['midi_note'] == 36:  # Kick drum
                             drum_note = note.Unpitched(quarterLength=0.25)
-                            drum_note.displayStep = 'C'  # Below staff (space below first line)
-                            drum_note.displayOctave = 4
+                            drum_note.displayStep = 'A'  # Bottom space (A2 in bass clef)
+                            drum_note.displayOctave = 2
                             drum_note.notehead = 'normal'
                         elif event['midi_note'] == 38:  # Snare drum
                             drum_note = note.Unpitched(quarterLength=0.25)
-                            drum_note.displayStep = 'E'  # First line of staff
-                            drum_note.displayOctave = 4
+                            drum_note.displayStep = 'E'  # Middle space (E3 in bass clef)
+                            drum_note.displayOctave = 3
                             drum_note.notehead = 'normal'
                         elif event['midi_note'] == 42:  # Hi-hat
                             drum_note = note.Unpitched(quarterLength=0.25)
-                            drum_note.displayStep = 'G'  # Above staff (space above fifth line)
-                            drum_note.displayOctave = 5
+                            drum_note.displayStep = 'B'  # Top space (B3 in bass clef)
+                            drum_note.displayOctave = 3
                             drum_note.notehead = 'x'
                         else:
                             drum_note = note.Unpitched(quarterLength=0.25)
                             drum_note.displayStep = 'E'
-                            drum_note.displayOctave = 4
+                            drum_note.displayOctave = 3
                             drum_note.notehead = 'normal'
 
                         # Set offset within measure
@@ -364,8 +371,8 @@ class MusicXMLGenerator:
       </direction>
       <note>
         <unpitched>
-          <display-step>C</display-step>
-          <display-octave>4</display-octave>
+          <display-step>A</display-step>
+          <display-octave>2</display-octave>
         </unpitched>
         <duration>1</duration>
         <type>quarter</type>
@@ -374,7 +381,7 @@ class MusicXMLGenerator:
       <note>
         <unpitched>
           <display-step>E</display-step>
-          <display-octave>4</display-octave>
+          <display-octave>3</display-octave>
         </unpitched>
         <duration>1</duration>
         <type>quarter</type>
@@ -382,8 +389,8 @@ class MusicXMLGenerator:
       </note>
       <note>
         <unpitched>
-          <display-step>G</display-step>
-          <display-octave>5</display-octave>
+          <display-step>B</display-step>
+          <display-octave>3</display-octave>
         </unpitched>
         <duration>1</duration>
         <type>quarter</type>
