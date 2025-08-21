@@ -10,7 +10,17 @@ import logging
 import tempfile
 from pathlib import Path
 from typing import Optional, Dict, Any, List
-import numpy as np
+
+try:
+    import numpy as np
+except ImportError:
+    # Fallback for when numpy is not available
+    class NumpyFallback:
+        @staticmethod
+        def ceil(x):
+            import math
+            return math.ceil(x)
+    np = NumpyFallback()
 
 logger = logging.getLogger(__name__)
 
@@ -53,11 +63,12 @@ class MusicXMLGenerator:
         """
         self.temp_dir = temp_dir or tempfile.mkdtemp(prefix="musicxml_gen_")
         
-        # Drum note mappings for percussion staff (MIDI note -> staff position)
+        # Standard drum kit mapping for percussion staff
+        # Using standard GM percussion mapping with proper staff positions
         self.drum_pitches = {
-            36: 'F4',   # Kick drum -> F4 (below staff)
-            38: 'B4',   # Snare drum -> B4 (middle line)
-            42: 'F5'    # Hi-hat -> F5 (above staff)
+            36: 'C4',   # Kick drum -> C4 (space below staff)
+            38: 'E4',   # Snare drum -> E4 (first line)
+            42: 'G5'    # Hi-hat -> G5 (above staff)
         }
         
         # Drum names for display
@@ -124,15 +135,23 @@ class MusicXMLGenerator:
             drum_part = stream.Part()
             drum_part.partName = 'Drums'
             
-            # Set up percussion instrument and clef
-            perc_instrument = instrument.Percussion()
-            perc_instrument.instrumentName = 'Drum Kit'
-            drum_part.append(perc_instrument)
+            # Set up drum kit with proper percussion setup
+            from music21 import clef, key
 
-            # Add percussion clef
-            from music21 import clef
+            # Add percussion clef first
             perc_clef = clef.PercussionClef()
             drum_part.append(perc_clef)
+
+            # Add key signature (no key for percussion)
+            no_key = key.KeySignature(0)
+            drum_part.append(no_key)
+
+            # Set up percussion instrument
+            perc_instrument = instrument.Percussion()
+            perc_instrument.instrumentName = 'Drum Kit'
+            perc_instrument.midiProgram = 0  # Standard drum kit
+            perc_instrument.midiChannel = 9  # Drum channel (10, 0-indexed)
+            drum_part.append(perc_instrument)
             
             # Collect all events with timing
             all_events = []
@@ -168,33 +187,63 @@ class MusicXMLGenerator:
                 rest = note.Rest(quarterLength=4.0)
                 drum_part.append(rest)
             else:
-                # Add notes to the part
+                # Create measures and add notes
+                from music21.stream import Measure
+
+                # Group events by measure (4 beats per measure)
+                measures_dict = {}
                 for event in all_events:
-                    # Create unpitched note for drums
-                    drum_note = note.Note(event['pitch'])
-                    drum_note.quarterLength = 0.25  # Sixteenth note duration
+                    beat_offset = event['time'] * (bpm / 60.0)
+                    measure_num = int(beat_offset // 4) + 1
+                    beat_in_measure = beat_offset % 4
 
-                    # Set notehead style based on drum type
-                    if event['midi_note'] == 42:  # Hi-hat
-                        drum_note.notehead = 'x'  # X notehead for cymbals
-                    else:  # Kick and snare
-                        drum_note.notehead = 'normal'  # Normal notehead for drums
+                    if measure_num not in measures_dict:
+                        measures_dict[measure_num] = []
 
-                    # Add to part at specific offset
-                    beat_offset = event['time'] * (bpm / 60.0)  # Convert to beats
-                    drum_part.insert(beat_offset, drum_note)
+                    measures_dict[measure_num].append({
+                        'beat': beat_in_measure,
+                        'event': event
+                    })
 
-                    logger.debug(f"   Added {event['drum']} at {event['time']:.2f}s (beat {beat_offset:.2f})")
+                # Create measures
+                for measure_num in sorted(measures_dict.keys()):
+                    m = Measure(number=measure_num)
+
+                    # Add notes to measure
+                    for note_info in sorted(measures_dict[measure_num], key=lambda x: x['beat']):
+                        event = note_info['event']
+
+                        # Create percussion note
+                        if event['midi_note'] == 36:  # Kick
+                            drum_note = note.Note('C4', quarterLength=0.25)
+                            drum_note.notehead = 'normal'
+                        elif event['midi_note'] == 38:  # Snare
+                            drum_note = note.Note('E4', quarterLength=0.25)
+                            drum_note.notehead = 'normal'
+                        elif event['midi_note'] == 42:  # Hi-hat
+                            drum_note = note.Note('G5', quarterLength=0.25)
+                            drum_note.notehead = 'x'
+                        else:
+                            drum_note = note.Note(event['pitch'], quarterLength=0.25)
+                            drum_note.notehead = 'normal'
+
+                        # Set offset within measure
+                        drum_note.offset = note_info['beat']
+                        m.append(drum_note)
+
+                        logger.debug(f"   Added {event['drum']} at measure {measure_num}, beat {note_info['beat']:.2f}")
+
+                    # Fill measure to 4 beats if needed
+                    if m.duration.quarterLength < 4.0:
+                        rest_duration = 4.0 - m.duration.quarterLength
+                        if rest_duration > 0:
+                            rest = note.Rest(quarterLength=rest_duration)
+                            m.append(rest)
+
+                    drum_part.append(m)
             
-            # Add bar lines every 4 beats
-            max_time = max(event['time'] for event in all_events) if all_events else 4.0
-            max_beats = max_time * (bpm / 60.0)
-            num_measures = int(np.ceil(max_beats / 4.0))
-            
-            for measure in range(1, num_measures + 1):
-                bar_line = bar.Barline('regular')
-                drum_part.insert(measure * 4.0, bar_line)
-            
+            # Calculate number of measures created
+            num_measures = len(measures_dict) if all_events else 1
             logger.info(f"   Added {num_measures} measures")
             
             # Add part to score

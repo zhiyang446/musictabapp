@@ -6,11 +6,17 @@ Simple MusicXML Test - Direct test of T50 functionality
 
 import os
 import sys
-import numpy as np
 from pathlib import Path
 
 # Add the worker directory to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'services', 'worker'))
+
+# Import numpy after adding path
+try:
+    import numpy as np
+except ImportError:
+    print("⚠️  numpy not available, using basic arrays")
+    np = None
 
 def test_musicxml_simple():
     """Simple test of MusicXML generation"""
@@ -24,11 +30,18 @@ def test_musicxml_simple():
         print("✅ MusicXML generator imported successfully")
         
         # Create test data
-        drum_onsets = {
-            'kick': np.array([0.0, 2.0]),
-            'snare': np.array([1.0, 3.0]),
-            'hihat': np.array([0.5, 1.5, 2.5, 3.5])
-        }
+        if np:
+            drum_onsets = {
+                'kick': np.array([0.0, 2.0]),
+                'snare': np.array([1.0, 3.0]),
+                'hihat': np.array([0.5, 1.5, 2.5, 3.5])
+            }
+        else:
+            drum_onsets = {
+                'kick': [0.0, 2.0],
+                'snare': [1.0, 3.0],
+                'hihat': [0.5, 1.5, 2.5, 3.5]
+            }
         
         print("✅ Test drum data created")
         
