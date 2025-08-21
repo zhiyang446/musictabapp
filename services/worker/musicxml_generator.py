@@ -213,18 +213,29 @@ class MusicXMLGenerator:
                     for note_info in sorted(measures_dict[measure_num], key=lambda x: x['beat']):
                         event = note_info['event']
 
-                        # Create percussion note
+                        # Create unpitched note for proper drum notation
                         if event['midi_note'] == 36:  # Kick
-                            drum_note = note.Note('C4', quarterLength=0.25)
+                            # Use MIDI note 36 for kick drum
+                            drum_note = note.Unpitched(quarterLength=0.25)
+                            drum_note.displayStep = 'F'
+                            drum_note.displayOctave = 4
                             drum_note.notehead = 'normal'
                         elif event['midi_note'] == 38:  # Snare
-                            drum_note = note.Note('E4', quarterLength=0.25)
+                            # Use MIDI note 38 for snare drum
+                            drum_note = note.Unpitched(quarterLength=0.25)
+                            drum_note.displayStep = 'B'
+                            drum_note.displayOctave = 4
                             drum_note.notehead = 'normal'
                         elif event['midi_note'] == 42:  # Hi-hat
-                            drum_note = note.Note('G5', quarterLength=0.25)
+                            # Use MIDI note 42 for hi-hat
+                            drum_note = note.Unpitched(quarterLength=0.25)
+                            drum_note.displayStep = 'F'
+                            drum_note.displayOctave = 5
                             drum_note.notehead = 'x'
                         else:
-                            drum_note = note.Note(event['pitch'], quarterLength=0.25)
+                            drum_note = note.Unpitched(quarterLength=0.25)
+                            drum_note.displayStep = 'B'
+                            drum_note.displayOctave = 4
                             drum_note.notehead = 'normal'
 
                         # Set offset within measure
