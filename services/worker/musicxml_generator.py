@@ -214,27 +214,27 @@ class MusicXMLGenerator:
                         event = note_info['event']
 
                         # Create unpitched note for proper drum notation
-                        if event['midi_note'] == 36:  # Kick
-                            # Use MIDI note 36 for kick drum
+                        # According to MusicXML 4.0: "If percussion clef is used, the display-step
+                        # and display-octave elements are interpreted as if in treble clef,
+                        # with a G in octave 4 on line 2."
+                        if event['midi_note'] == 36:  # Kick drum
                             drum_note = note.Unpitched(quarterLength=0.25)
-                            drum_note.displayStep = 'F'
+                            drum_note.displayStep = 'C'  # Below staff (space below first line)
                             drum_note.displayOctave = 4
                             drum_note.notehead = 'normal'
-                        elif event['midi_note'] == 38:  # Snare
-                            # Use MIDI note 38 for snare drum
+                        elif event['midi_note'] == 38:  # Snare drum
                             drum_note = note.Unpitched(quarterLength=0.25)
-                            drum_note.displayStep = 'B'
+                            drum_note.displayStep = 'E'  # First line of staff
                             drum_note.displayOctave = 4
                             drum_note.notehead = 'normal'
                         elif event['midi_note'] == 42:  # Hi-hat
-                            # Use MIDI note 42 for hi-hat
                             drum_note = note.Unpitched(quarterLength=0.25)
-                            drum_note.displayStep = 'F'
+                            drum_note.displayStep = 'G'  # Above staff (space above fifth line)
                             drum_note.displayOctave = 5
                             drum_note.notehead = 'x'
                         else:
                             drum_note = note.Unpitched(quarterLength=0.25)
-                            drum_note.displayStep = 'B'
+                            drum_note.displayStep = 'E'
                             drum_note.displayOctave = 4
                             drum_note.notehead = 'normal'
 
@@ -364,7 +364,7 @@ class MusicXMLGenerator:
       </direction>
       <note>
         <unpitched>
-          <display-step>F</display-step>
+          <display-step>C</display-step>
           <display-octave>4</display-octave>
         </unpitched>
         <duration>1</duration>
@@ -373,7 +373,7 @@ class MusicXMLGenerator:
       </note>
       <note>
         <unpitched>
-          <display-step>B</display-step>
+          <display-step>E</display-step>
           <display-octave>4</display-octave>
         </unpitched>
         <duration>1</duration>
@@ -382,7 +382,7 @@ class MusicXMLGenerator:
       </note>
       <note>
         <unpitched>
-          <display-step>F</display-step>
+          <display-step>G</display-step>
           <display-octave>5</display-octave>
         </unpitched>
         <duration>1</duration>
