@@ -1,264 +1,192 @@
 """
-T48 - Source Separation Module (Placeholder)
+T48 - Source Separation Module
 
-This module provides a placeholder implementation for source separation.
-Initially, it directly returns the original audio without separation.
-This preserves the options.separate parameter pathway for future implementation.
+This module implements audio source separation using Demucs and Spleeter.
+It provides a unified interface to separate audio into different stems like
+drums, bass, vocals, and other instruments.
 """
 
 import os
 import logging
 import shutil
+import sys
+import subprocess
+import tempfile
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Literal
 
+# Configure logger for the module
 logger = logging.getLogger(__name__)
+
+# Define supported separation methods
+SeparationMethod = Literal['none', 'demucs', 'spleeter']
 
 
 class SourceSeparator:
     """
-    Source separator placeholder implementation
-    
-    This class provides the interface for source separation functionality.
-    Initially, it acts as a pass-through, returning the original audio.
+    Provides audio source separation using different models.
+    Manages temporary directories and execution of separation commands.
     """
-    
-    def __init__(self, temp_dir: Optional[str] = None):
+
+    def __init__(self, temp_dir: Optional[str] = None, cleanup: bool = True):
         """
-        Initialize source separator
-        
+        Initializes the SourceSeparator.
+
         Args:
-            temp_dir: Optional temporary directory for processing
+            temp_dir: A dedicated temporary directory for separation outputs.
+            cleanup: If True, automatically cleans up the temp directory.
         """
-        self.temp_dir = temp_dir or os.path.join(os.getcwd(), 'temp_separation')
-        self.supported_sources = ['vocals', 'drums', 'bass', 'other']
-        
-        # Ensure temp directory exists
-        Path(self.temp_dir).mkdir(parents=True, exist_ok=True)
-        
-        logger.info(f"🎵 T48: SourceSeparator initialized")
-        logger.info(f"   Temp directory: {self.temp_dir}")
-        logger.info(f"   Supported sources: {', '.join(self.supported_sources)}")
-    
-    def __del__(self):
-        """Cleanup temporary directory"""
-        try:
-            if hasattr(self, 'temp_dir') and os.path.exists(self.temp_dir):
-                shutil.rmtree(self.temp_dir)
-        except Exception as e:
-            logger.warning(f"Failed to cleanup temp directory: {e}")
-    
-    def separate_sources(self, input_path: str, job_id: str, 
-                        sources: Optional[List[str]] = None) -> Dict[str, Any]:
-        """
-        Separate audio sources (placeholder implementation)
-        
-        Args:
-            input_path: Path to input audio file
-            job_id: Job ID for output file naming
-            sources: List of sources to separate (vocals, drums, bass, other)
-            
-        Returns:
-            Dict containing separation results
-        """
-        logger.info(f"🎵 T48: Starting source separation for job {job_id}")
-        logger.info(f"   Input: {Path(input_path).name}")
-        
-        # Use default sources if none specified
-        if sources is None:
-            sources = self.supported_sources.copy()
-        
-        # Validate requested sources
-        valid_sources = [s for s in sources if s in self.supported_sources]
-        if not valid_sources:
-            valid_sources = ['other']  # Fallback to 'other'
-        
-        logger.info(f"   Requested sources: {', '.join(valid_sources)}")
-        
-        try:
-            # Check if input file exists
-            if not os.path.exists(input_path):
-                raise Exception(f"Input file not found: {input_path}")
-            
-            # Get input file info
-            input_size = os.path.getsize(input_path)
-            input_name = Path(input_path).name
-            
-            logger.info(f"   Input file size: {input_size:,} bytes")
-            
-            # T48 Placeholder: For now, just copy the original file for each source
-            separated_files = {}
-            
-            for source in valid_sources:
-                output_filename = f"{job_id}_{source}.wav"
-                output_path = os.path.join(self.temp_dir, output_filename)
-                
-                # Copy original file as placeholder
-                shutil.copy2(input_path, output_path)
-                
-                separated_files[source] = {
-                    'path': output_path,
-                    'filename': output_filename,
-                    'size': os.path.getsize(output_path)
-                }
-                
-                logger.info(f"   ✅ {source}: {output_filename}")
-            
-            # Create result
-            result = {
-                'success': True,
-                'job_id': job_id,
-                'input_file': input_name,
-                'input_size': input_size,
-                'separated_files': separated_files,
-                'sources': valid_sources,
-                'method': 'placeholder',
-                'note': 'T48 placeholder: returns original audio for each source'
-            }
-            
-            logger.info(f"✅ T48: Source separation completed (placeholder)")
-            logger.info(f"   Generated {len(separated_files)} source files")
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"❌ T48: Source separation failed: {e}")
-            raise Exception(f"Source separation failed: {e}")
-    
-    def get_separated_file(self, job_id: str, source: str) -> Optional[str]:
-        """
-        Get path to separated source file
-        
-        Args:
-            job_id: Job ID
-            source: Source name (vocals, drums, bass, other)
-            
-        Returns:
-            Path to separated file or None if not found
-        """
-        if source not in self.supported_sources:
-            logger.warning(f"Unsupported source: {source}")
-            return None
-        
-        filename = f"{job_id}_{source}.wav"
-        file_path = os.path.join(self.temp_dir, filename)
-        
-        if os.path.exists(file_path):
-            return file_path
+        if temp_dir:
+            self.temp_dir = Path(temp_dir)
         else:
-            logger.warning(f"Separated file not found: {filename}")
-            return None
-    
-    def cleanup_job_files(self, job_id: str):
-        """
-        Clean up files for a specific job
-        
-        Args:
-            job_id: Job ID to clean up
-        """
+            self.temp_dir = Path(tempfile.gettempdir()) / f"separation_{os.getpid()}"
+        self.cleanup = cleanup
+        self.supported_stems = ['drums', 'bass', 'other', 'vocals']
+
+        Path(self.temp_dir).mkdir(parents=True, exist_ok=True)
+        logger.info(f"🎵 T48: SourceSeparator initialized. Temp dir: {self.temp_dir}")
+
+    def _run_command(self, command: List[str]):
+        """Runs a shell command and logs its output."""
+        logger.info(f"Running command: {' '.join(command)}")
         try:
-            pattern = f"{job_id}_*.wav"
-            temp_path = Path(self.temp_dir)
-            
-            for file_path in temp_path.glob(pattern):
-                file_path.unlink()
-                logger.info(f"🧹 Cleaned up: {file_path.name}")
-                
-        except Exception as e:
-            logger.warning(f"Failed to cleanup job files: {e}")
-    
-    def is_separation_available(self) -> bool:
+            process = subprocess.run(
+                command,
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding='utf-8'
+            )
+            logger.info(f"Command stdout:\n{process.stdout}")
+            if process.stderr:
+                logger.warning(f"Command stderr:\n{process.stderr}")
+        except FileNotFoundError as e:
+            logger.error(f"Command not found: {e.filename}. Is it installed and in PATH?")
+            raise
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Command failed with exit code {e.returncode}")
+            logger.error(f"Stdout: {e.stdout}")
+            logger.error(f"Stderr: {e.stderr}")
+            raise
+
+    def _separate_demucs(self, input_path: str) -> Dict[str, Path]:
+        """Separates sources using Demucs."""
+        logger.info("Separating sources with Demucs...")
+        output_dir = self.temp_dir / "demucs_output"
+
+        # Command to run Demucs with a pre-trained model
+        command = [
+            sys.executable, "-m", "demucs.separate",
+            "-n", "htdemucs_ft",  # High-quality fine-tuned model
+            "--out", str(output_dir),
+            str(input_path)
+        ]
+        self._run_command(command)
+
+        # Demucs creates a subdirectory based on the model name
+        model_output_dir = output_dir / "htdemucs_ft" / Path(input_path).stem
+        if not model_output_dir.exists():
+             model_output_dir = output_dir / Path(input_path).stem
+
+        # Map Demucs output files to standardized stem names
+        stem_paths = {stem: model_output_dir / f"{stem}.wav" for stem in self.supported_stems}
+
+        # Verify that the expected output files were created
+        for stem, path in stem_paths.items():
+            if not path.exists():
+                logger.warning(f"Demucs output file not found for stem '{stem}': {path}")
+
+        return {k: v for k, v in stem_paths.items() if v.exists()}
+
+    def _separate_spleeter(self, input_path: str) -> Dict[str, Path]:
+        """Separates sources using Spleeter."""
+        logger.info("Separating sources with Spleeter...")
+        output_dir = self.temp_dir / "spleeter_output"
+
+        # Command to run Spleeter with a 5-stem model
+        command = [
+            "spleeter", "separate",
+            "-p", "spleeter:5stems",
+            "-o", str(output_dir),
+            str(input_path)
+        ]
+        self._run_command(command)
+
+        # Spleeter creates a subdirectory based on the input file name
+        spleeter_output_dir = output_dir / Path(input_path).stem
+
+        # Spleeter 5-stem model includes 'piano', map it to 'other'
+        spleeter_map = {
+            'vocals': 'vocals.wav',
+            'drums': 'drums.wav',
+            'bass': 'bass.wav',
+            'other': 'other.wav',
+            'piano': 'piano.wav' # will be merged into 'other' if needed
+        }
+
+        stem_paths = {stem: spleeter_output_dir / fname for stem, fname in spleeter_map.items()
+                      if (spleeter_output_dir / fname).exists()}
+
+        # For simplicity, we'll just use the main stems. If piano exists, it's available.
+        return {k: v for k, v in stem_paths.items() if k in self.supported_stems}
+
+    def separate(self, input_path: str, job_id: str,
+                 method: SeparationMethod = 'none') -> Dict[str, Any]:
         """
-        Check if source separation is available
-        
+        Main separation method to orchestrate different models.
+
+        Args:
+            input_path: Path to the preprocessed audio file.
+            job_id: Unique identifier for the job.
+            method: The separation method to use ('none', 'demucs', 'spleeter').
+
         Returns:
-            True if separation is available (always True for placeholder)
+            A dictionary containing paths to the separated stem files.
         """
-        return True
-    
-    def get_separation_info(self) -> Dict[str, Any]:
-        """
-        Get information about separation capabilities
-        
-        Returns:
-            Dict containing separation info
-        """
-        return {
-            'available': True,
-            'method': 'placeholder',
-            'supported_sources': self.supported_sources,
-            'description': 'T48 placeholder implementation - returns original audio',
-            'note': 'This is a placeholder that will be replaced with actual separation logic'
-        }
+        logger.info(f"🎵 T48: Starting source separation for job {job_id} with method '{method}'")
 
+        stem_files = {}
+        if method == 'none':
+            logger.info("Separation method is 'none'. Copying original file as placeholder.")
+            # As a placeholder, copy the original file for required stems
+            for stem in ['drums', 'bass']: # Only create placeholders for what's needed next
+                placeholder_path = self.temp_dir / f"{job_id}_{stem}.wav"
+                shutil.copy2(input_path, placeholder_path)
+                stem_files[stem] = str(placeholder_path)
 
-def create_source_separator(temp_dir: Optional[str] = None) -> SourceSeparator:
-    """
-    Factory function to create source separator instance
-    
-    Args:
-        temp_dir: Optional temporary directory
-        
-    Returns:
-        SourceSeparator instance
-    """
-    return SourceSeparator(temp_dir)
+        elif method == 'demucs':
+            raw_stems = self._separate_demucs(input_path)
+            # Rename files to a standardized format for the job
+            for stem, path in raw_stems.items():
+                final_path = self.temp_dir / f"{job_id}_{stem}.wav"
+                shutil.move(str(path), str(final_path))
+                stem_files[stem] = str(final_path)
 
+        elif method == 'spleeter':
+            raw_stems = self._separate_spleeter(input_path)
+            for stem, path in raw_stems.items():
+                final_path = self.temp_dir / f"{job_id}_{stem}.wav"
+                shutil.move(str(path), str(final_path))
+                stem_files[stem] = str(final_path)
+        else:
+            raise ValueError(f"Unsupported separation method: {method}")
 
-def process_with_separation(input_path: str, job_id: str, 
-                          separate: bool = False, 
-                          sources: Optional[List[str]] = None) -> Dict[str, Any]:
-    """
-    Process audio with optional source separation
-    
-    Args:
-        input_path: Path to input audio file
-        job_id: Job ID
-        separate: Whether to perform source separation
-        sources: List of sources to separate
-        
-    Returns:
-        Dict containing processing results
-    """
-    logger.info(f"🎵 T48: Processing audio with separation option: {separate}")
-    
-    if not separate:
-        # No separation requested, return original file info
         result = {
             'success': True,
-            'separation_enabled': False,
-            'original_file': input_path,
-            'note': 'Source separation disabled, using original audio'
+            'method': method,
+            'job_id': job_id,
+            'stems': stem_files
         }
-        
-        logger.info(f"⏭️  T48: Source separation disabled")
+
+        logger.info(f"✅ T48: Separation complete. Stems created: {list(stem_files.keys())}")
         return result
-    
-    # Separation requested, use separator
-    separator = create_source_separator()
-    
-    try:
-        separation_result = separator.separate_sources(input_path, job_id, sources)
-        
-        result = {
-            'success': True,
-            'separation_enabled': True,
-            'separation_result': separation_result,
-            'note': 'Source separation completed (placeholder)'
-        }
-        
-        return result
-        
-    except Exception as e:
-        logger.error(f"❌ T48: Separation processing failed: {e}")
-        
-        # Fallback to original file
-        result = {
-            'success': True,
-            'separation_enabled': False,
-            'original_file': input_path,
-            'error': str(e),
-            'note': 'Source separation failed, falling back to original audio'
-        }
-        
-        return result
+
+    def __del__(self):
+        """Cleans up the temporary directory on object destruction."""
+        if self.cleanup:
+            try:
+                if hasattr(self, 'temp_dir') and Path(self.temp_dir).exists():
+                    shutil.rmtree(self.temp_dir)
+                    logger.info(f"Cleaned up temporary directory: {self.temp_dir}")
+            except Exception as e:
+                logger.error(f"Failed to clean up temp directory {self.temp_dir}: {e}")
