@@ -151,6 +151,8 @@ class SourceSeparator:
             # As a placeholder, copy the original file for required stems
             for stem in ['drums', 'bass']: # Only create placeholders for what's needed next
                 placeholder_path = self.temp_dir / f"{job_id}_{stem}.wav"
+                # Ensure temp directory exists
+                self.temp_dir.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(input_path, placeholder_path)
                 stem_files[stem] = str(placeholder_path)
 
