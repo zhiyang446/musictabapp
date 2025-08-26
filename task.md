@@ -335,196 +335,47 @@
 
 ---
 
-**T49 — 鼓：转写（Demucs + DLDC，**原始波形输入**，librosa 起音对齐辅助）→ 原始事件 MIDI**
-
-- **目标**：从 `drums.wav` 自动提取 Kick / Snare / Hi-Hat / Tom / Cymbal 的事件，并输出鼓 MIDI
-
-- **依赖安装 (Windows + Python 3.11)**：
-```bash
-pip install torch torchaudio librosa soundfile numpy mido pretty_midi music21 demucs
-```
-
-- **模型权重 (DLDC, TorchScript)**：
-  - 项目地址：https://github.com/alecdotdev/DLDC  
-  - 预训练权重下载（示例）：https://github.com/alecdotdev/DLDC/raw/main/model_v0.12.pt  
-  - 保存路径：`models/dldc/model_v0.12.pt`
-
-- **实现步骤（波形 → 模型 → 后处理 → MIDI）**：
-  1) **分离 (Demucs)**：生成 `stems/drums.wav`  
-  2) **输入格式**：DLDC 是 **Conv1d 模型**，期望 **原始波形** 输入，张量形状为 **[batch, channel=1, length]**，**不要**提取梅尔谱。  
-  3) **滑窗推理**（建议 3.0s 窗长，50% 重叠）：对 `drums.wav` 切片；每片转 `Tensor[1,1,L]` 喂给模型。  
-  4) **时间映射**：对每个片段，设定：`seg_dur = seg_len_samples / sr`，若模型输出为 `[C, T']`，则 `dt = seg_dur / T'`；第 `t` 帧的时间戳约为 `seg_start_time + t*dt`。若输出为 `[C]`（无时间轴），则将该片段的得分落在片段中心时间。  
-  5) **后处理**：用 `librosa.onset.onset_detect` 获取全曲起音 → 将模型峰值“吸附”到最近起音（±35ms）→ 按类做阈值、NMS/最小间隔（40–60ms）→ 映射到 GM Perc 音高（Kick=36, Snare=38, HHc=42, HHo=46，Tom=45/47/50，Cymbal=49/51）。  
-  6) **输出**：写出 `tmp/drums_raw.mid`。
-
-- **代码示例（TorchScript + 波形 + 通用时间映射）**：
-```python
-import torch, librosa, numpy as np
-from mido import MidiFile, MidiTrack, Message
-
-SR = 22050          # 建议使用 22050（常见 end-to-end 训练采样率）
-SEG_SEC = 3.0       # 每段 3s
-OVERLAP = 0.5       # 50% 重叠
-SNAP_MS = 35        # 起音吸附窗
-MIN_GAP = 0.05      # 同类最小间隔 50ms
-
-LABELS = ["kick","snare","hihat","tom","cymbal"]
-GM = {"kick":36,"snare":38,"hihat":42,"tom":47,"cymbal":49}  # 可细分成 tom_low/mid/high, ride/crash 等
-
-def to_segments(y, sr, seg_sec=SEG_SEC, overlap=OVERLAP):
-    seg_len = int(seg_sec * sr)
-    hop = int(seg_len * (1 - overlap))
-    starts = list(range(0, max(1, len(y)-seg_len+1), hop))
-    if not starts or starts[-1] + seg_len < len(y):
-        starts.append(max(0, len(y)-seg_len))
-    return starts, seg_len
-
-def write_midi(events, bpm=120, out="tmp/drums_raw.mid"):
-    mid = MidiFile(ticks_per_beat=480); tr = MidiTrack(); mid.tracks.append(tr)
-    def s2t(x): return int(x * (mid.ticks_per_beat * bpm / 60.0))
-    t_prev = 0
-    for (t, name, vel) in sorted(events, key=lambda x: x[0]):
-        dt = max(0, s2t(t) - t_prev)
-        tr.append(Message('note_on', note=GM[name], velocity=vel, time=dt))
-        tr.append(Message('note_off', note=GM[name], velocity=0, time=s2t(0.1)))
-        t_prev = s2t(t) + s2t(0.1)
-    mid.save(out); print("Wrote", out)
-
-# 1) 读波形
-y, _ = librosa.load("stems/drums.wav", sr=SR, mono=True)
-
-# 2) 预加载 TorchScript 模型
-model = torch.jit.load("models/dldc/model_v0.12.pt", map_location="cpu").eval()
-
-# 3) 预计算全曲起音（辅助对齐）
-onset_frames = librosa.onset.onset_detect(y=y, sr=SR, hop_length=512, backtrack=True)
-onset_sec = np.array([f*512/SR for f in onset_frames])
-
-# 4) 滑窗推理 + 时间映射
-starts, seg_len = to_segments(y, SR)
-events = []
-for s in starts:
-    seg = y[s:s+seg_len]
-    x = torch.tensor(seg, dtype=torch.float32).unsqueeze(0).unsqueeze(0)  # [1,1,L]
-    with torch.no_grad():
-        out = model(x)   # TorchScript 输出：可能 [1,C,T'] 或 [1,C]
-    out_np = out.squeeze(0).cpu().numpy()  # -> [C,T'] or [C]
-
-    seg_start_t = s / SR
-    if out_np.ndim == 2:
-        C, Tprime = out_np.shape
-        dt = (len(seg)/SR) / max(1, Tprime)
-        for ci, name in enumerate(LABELS):
-            p = 1/(1+np.exp(-out_np[ci]))  # sigmoid
-            # 简单峰值选择
-            peaks = np.where((p[1:-1] > p[:-2]) & (p[1:-1] > p[2:]))[0] + 1
-            for t_idx in peaks:
-                t = seg_start_t + t_idx*dt
-                # 对齐到最近起音
-                if len(onset_sec):
-                    j = np.argmin(np.abs(onset_sec - t))
-                    if abs(onset_sec[j]-t) <= SNAP_MS/1000: t = float(onset_sec[j])
-                vel = int(min(127, 40 + 87*p[t_idx]))
-                events.append((t, name, vel))
-    else:
-        # [C]：整段得分，落在片段中心
-        C = out_np.shape[0]
-        t = seg_start_t + (len(seg)/SR)/2
-        p = 1/(1+np.exp(-out_np))
-        for ci, name in enumerate(LABELS[:C]):
-            if p[ci] >= 0.6:  # 粗阈值
-                vel = int(min(127, 40 + 87*p[ci]))
-                events.append((t, name, vel))
-
-# 5) 按类做最小间隔去重
-final_events = []
-for name in GM.keys():
-    cand = sorted([e for e in events if e[1]==name], key=lambda x:x[0])
-    last = -1.0
-    for e in cand:
-        if last<0 or e[0]-last>=MIN_GAP:
-            final_events.append(e); last = e[0]
-
-write_midi(final_events, bpm=120, out="tmp/drums_raw.mid")
-```
-
-- **DoD**：生成 `tmp/drums_raw.mid`，在 DAW/MuseScore 可见并可播放，至少包含 kick/snare/hihat 三类事件  
-- **测试**：对 8 小节样例，确认 kick/snare/hihat 同步出现，节拍基本对齐
-
----
-
-**T50 — 鼓：MIDI 标准化（量化、并行合并、GM Perc、ghost note）**
-- **目标**：把 `drums_raw.mid` 标准化成“可读的鼓谱 MIDI”
-- **规则**：
- 1) **量化**：对齐到 1/16 网格（Swing 情况 1/12） 
- 2) **并行合并**：同一拍/同一 tick 的多鼓件（如 `kick+hh`、`snare+hh`）必须写在同一时刻（polyphonic），避免“看起来不同步” 
- 3) **GM Percussion 映射**：Kick=36，Snare=38，Hi-Hat Closed=42，Hi-Hat Open=46，Hi-Hat Pedal=44，Crash=49，Ride=51（兜底归并） 
- 4) **ghost note**：力度 < 40 视作 ghost，力度回写为 25–35；极短毛刺 (<25ms) 移除 
-- **实现**：用 `pretty_midi/mido` 读取 `drums_raw.mid` → 应用上述规则 → 写出 `tmp/drums_standard.mid`
-- **DoD**：`tmp/drums_standard.mid` 在 MuseScore/DAW 中可见 **1/16 对齐** 且 **hat 与 kick/snare 同拍叠打**；音高符合 GM Perc 规范
-- **测试**：以动次打次（1、2、3、4 拍均有 hat）校验叠打是否正确呈现
-
-**T50.5 — 鼓：LLM 智能校对（节拍/叠打/符头一致性）**
-- **目标**：在 T50 标准化后，利用 LLM（ChatGPT/GPT‑4/5）基于“事件 JSON + 规则”进行乐理级修正，输出修订后的事件并回写到 MIDI
-- **输入 JSON Schema（示例）**：
- ```json
- {
- "meta": {"time_signature":"4/4","tempo_bpm":120,"grid":"1/16","swing":false},
- "track_type":"drums",
- "events":[
- {"t":0.0,"dur":0.25,"pitch":36,"label":"kick","vel":105,"conf":0.82},
- {"t":0.0,"dur":0.25,"pitch":42,"label":"hh_closed","vel":80,"conf":0.91},
- {"t":0.5,"dur":0.25,"pitch":38,"label":"snare","vel":96,"conf":0.84}
- ]
- }
- ```
-- **System Prompt（建议固定）**：
- > 你是音乐转写审校官。基于输入的鼓事件（含时间、力度、置信度、乐器标签、节拍信息），将其修正为标准且可演奏的版本。 > 规则：1) 对齐到给定网格；2) 维持 2/4 拍 backbeat；3) Hi‑Hat 以 42 为闭合，46 为开启，44 为踏钹；4) 删除 <25ms 的毛刺与极低置信度事件；5) 同拍叠打需并行呈现；6) 统一 GM Perc 编码；7) ghost note 力度 <40。
-- **User Prompt（示例）**：
- > 请按规则修正以下鼓事件，保持“动次打次”风格一致性。输出修订后的 `events` 与 `edits` 列表（说明每处修改原因）。输入：`{{JSON}}`
+**T49 — 鼓击切片与多击合并（Onset + 阈值合并）
+- **目标**：从 `stems/drums.wav` 中切分出鼓击短片，支持多击（Kick+HH、Snare+HH）合并。
 - **实现**：
- 1) 将 `tmp/drums_standard.mid` 解析为上述 JSON； 2) 请求 LLM 获得 `fixed.events`； 3) 生成 `tmp/drums_llm.mid`（保留 GM Perc 与 polyphonic 叠打）。
-- **DoD**：`tmp/drums_llm.mid` 在 MuseScore/DAW 中可见更整齐的 1/16 对齐；不合理的重叠/串音减少；2 与 4 拍 backbeat 更稳定。
-- **测试**：用 8 小节样例统计 LLM “删除/量化/重映射” 的 edit 数量占比；人工听测节拍更稳。
+  - `librosa.onset.onset_detect` 找到候选起音。
+  - 每个击打切 `~240ms` 片段（含 20–30ms pre-onset），统一长度。
+  - 起点相差 ≤30–50ms 或同一 1/16 网格 → 合并为多标签事件。
+  - 保存切片到 `clips/`，并记录 `events.jsonl`（start, end, labels[]）。
+- **DoD**：生成切片文件和事件 JSON，多击能被合并。
+- **测试**：用“动次打次”验证 Snare+HH 同拍被合并。
 
----
-
-**T51
-
-**T50.5 — 鼓：MIDI 智能校对（LLM 辅助）**
-- **目标**：在标准化 MIDI 基础上，利用 LLM（ChatGPT/GPT-4/5）做乐理与排版修正
-- **输入**：`tmp/drums_standard.mid` 解析为 JSON（事件列表：时间、音高、力度、鼓件标签、置信度）
-- **提示词**：
- - “对齐到 1/16 网格；同一拍多鼓件合并；Ghost note 力度<40；Hi-Hat 用 42/46；Kick=36, Snare=38；输出修正后的 JSON 并说明 edits。”
+T50 — 鼓击分类（Mel-Spectrogram + CNN 多标签）
+- **目标**：对切片进行鼓种类分类（Kick/Snare/HH/Toms/Cymbals）。
 - **实现**：
- - 解析 MIDI → JSON 
- - 调用 OpenAI ChatCompletions API，带入系统 + 用户 Prompt 
- - 将返回的 JSON 应用回 MIDI → `tmp/drums_llm.mid`
-- **DoD**：生成 `tmp/drums_llm.mid`，与 `drums_standard.mid` 比较可见修正（量化/合并/去噪）
-- **测试**：用“动次打次”样例跑一遍，观察 2、4 拍的 hi-hat 与 snare 是否更合理地对齐
+  - 生成 Mel-Spectrogram（n_mels=128，log 幅度）。
+  - CNN 模型：Conv+Pool×3 → Dense×2+Dropout → Sigmoid 多标签输出。
+  - 训练/微调数据：E-GMD（对齐 ≤2ms，含力度）。
+  - 推理：对每片输出类别概率 → 阈值化成 labels。
+- **DoD**：输出 `predictions.jsonl`（时间、类别、概率）。
+- **测试**：用节奏样例验证 2/4 拍 Snare，连续 HH 八分。
 
-**T51 — 鼓：MusicXML 导出（music21 映射到鼓谱符位/符头）**
-- **目标**：将标准化 MIDI 转为**标准鼓谱 MusicXML**
-- **映射**：
- - Hi-Hat：顶线上方，`notehead="x"`；Snare：中线圆头；Kick：低线圆头；Crash/Ride：最上方 X 头；Tom 高中低依次排列
- - 使用 `music21` 的 `Unpitched`/`Percussion` 记谱，并在同一拍使用 `Chord` 叠音
-- **实现**：`music21` 读取 `tmp/drums_standard.mid` → 依据自定义 mapping（pitch→staffLine/notehead）生成 `stream.Part`（isPercussion）→ `score.write("musicxml", "out/drums.xml")`
-- **DoD**：生成 `out/drums.xml`，用 MuseScore 打开：hi-hat 为 X 符号、kick/snare 与其**同拍叠写**且小节线/拍号正确
-- **测试**：随机抽 2 小节核对：2、4 拍军鼓 backbeat 与 hat 同时显示；导出无报错
+T51 — 后处理与标准化（量化 + 并行合并 + ghost）
+- **目标**：把预测事件转成可记谱 MIDI。
+- **实现**：
+  - 量化：直板 1/16（Swing 场景 1/12）。
+  - 并行合并：Kick/HH、Snare/HH 等叠打在同一 tick。
+  - NMS：同类相邻 <50ms 去重。
+  - 力度：<40 记 ghost note。
+  - GM Drum Map：Kick=36, Snare=38, HHc=42, HHo=46, Pedal=44, Toms=45/47/50, Crash=49, Ride=51。
+- **DoD**：生成 `out/drums.mid`，网格规整、叠写正确、ghost 合理。
+- **测试**：8 小节统计量化/合并比例，主观听感对拍。
 
----
+T52 — 导出鼓谱（MusicXML + PDF）
+- **目标**：从 MIDI 导出 MusicXML 和 PDF 鼓谱。
+- **实现**：
+  - 用 `music21` 将 GM 音符映射到标准鼓谱位置（HH 顶部 X，Snare 中线，Kick 低部，镲顶线以上）。
+  - 导出 `out/drums.xml`。
+  - 可用 MuseScore CLI 渲染 `out/drums.pdf`。
+- **DoD**：生成可视化鼓谱文件，HH 与 Snare/Kick 同拍叠写正确。
+- **测试**：人工核对两小节，2/4 拍 backbeat，HH 八分。
 
-**T52 — 鼓：PDF 渲染（MuseScore CLI 或 LilyPond）**
-- **目标**：把 `out/drums.xml` 渲染为可分享的 PDF
-- **MuseScore CLI 示例**：
- - `mscore -o out/drums.pdf out/drums.xml`（或 `mscore4portable` / `musescore-portable`，视环境而定）
-- **LilyPond（可选路径）**：将 MusicXML 转换后渲染
-- **DoD**：生成 `out/drums.pdf`，排版可读
-- **测试**：打开 PDF 视觉检查两页以内不溢出、谱号/拍号清晰
-
----
-
-**T53 — 贝斯：转写（Basic Pitch 或 
+T53 — 贝斯：转写（Basic Pitch 或 
 - **目标**：从 `bass.wav` 提取主旋律/低音线并输出 MIDI
 - **方案 A（推荐）**：**Basic Pitch**（对单旋律友好，弯音鲁棒） 
  - 安装：`pip install demucs essentia torch torchaudio pretty_midi mido music21 basic-pitch librosa soundfile numpy`
@@ -576,7 +427,7 @@ write_midi(final_events, bpm=120, out="tmp/drums_raw.mid")
  - `grid: 1/12|1/16`（swing 或直板）
 - **实现**：`scripts/process_demo.sh`：
  1) 预处理 →（可选）分离 
- 2) 鼓：转写→标准化→XML→PDF 
+ 2) 鼓：切片→分类→标准化→XML→PDF 
  3) 贝斯：转写→标准化→XML→PDF 
 - **DoD**：一条命令在 `./out/` 产出：`drums.mid/xml/pdf` 与 `bass.mid/xml/pdf`
 - **测试**：更换 `precision` 和 `grid` 参数能看到显著差异（速度/节拍对齐）

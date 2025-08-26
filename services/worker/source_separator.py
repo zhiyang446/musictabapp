@@ -181,6 +181,20 @@ class SourceSeparator:
         logger.info(f"✅ T48: Separation complete. Stems created: {list(stem_files.keys())}")
         return result
 
+    def get_separation_info(self) -> Dict[str, Any]:
+        """Get information about the separation capabilities."""
+        return {
+            'method': 'placeholder',
+            'supported_methods': ['none', 'demucs', 'spleeter'],
+            'supported_stems': self.supported_stems,
+            'temp_dir': str(self.temp_dir)
+        }
+
+    @property
+    def supported_sources(self) -> List[str]:
+        """Get list of supported source types."""
+        return self.supported_stems.copy()
+
     def __del__(self):
         """Cleans up the temporary directory on object destruction."""
         if self.cleanup:
@@ -190,3 +204,93 @@ class SourceSeparator:
                     logger.info(f"Cleaned up temporary directory: {self.temp_dir}")
             except Exception as e:
                 logger.error(f"Failed to clean up temp directory {self.temp_dir}: {e}")
+
+
+def create_source_separator(temp_dir: Optional[str] = None) -> SourceSeparator:
+    """
+    Factory function to create a SourceSeparator instance.
+
+    Args:
+        temp_dir: Optional temporary directory path
+
+    Returns:
+        SourceSeparator instance
+    """
+    return SourceSeparator(temp_dir=temp_dir)
+
+
+def process_with_separation(input_path: str, job_id: str, separate: bool = False,
+                          sources: Optional[List[str]] = None,
+                          method: SeparationMethod = 'none') -> Dict[str, Any]:
+    """
+    Process audio with optional source separation.
+
+    This is the main interface function that T48 tests expect.
+
+    Args:
+        input_path: Path to input audio file
+        job_id: Job identifier
+        separate: Whether to enable separation
+        sources: List of sources to separate (optional)
+        method: Separation method to use
+
+    Returns:
+        Dictionary with processing results
+    """
+    logger.info(f"🎵 T48: Processing with separation - separate={separate}, method={method}")
+
+    try:
+        # Create separator instance
+        separator = create_source_separator()
+
+        if not separate:
+            # Separation disabled - return original file
+            result = {
+                'success': True,
+                'separation_enabled': False,
+                'original_file': input_path,
+                'note': 'Separation disabled, using original audio'
+            }
+            logger.info("   ✅ Separation disabled, returning original file")
+            return result
+
+        else:
+            # Separation enabled - use separator
+            try:
+                separation_result = separator.separate(
+                    input_path=input_path,
+                    job_id=job_id,
+                    method=method if method != 'none' else 'none'
+                )
+
+                result = {
+                    'success': True,
+                    'separation_enabled': True,
+                    'separation_result': {
+                        'method': separation_result['method'],
+                        'sources': list(separation_result['stems'].keys()),
+                        'separated_files': separation_result['stems']
+                    }
+                }
+                logger.info(f"   ✅ Separation completed with method '{method}'")
+                return result
+
+            except Exception as e:
+                # Fallback to original file on separation error
+                logger.warning(f"   ⚠️  Separation failed, falling back to original: {e}")
+                result = {
+                    'success': True,
+                    'separation_enabled': False,
+                    'original_file': input_path,
+                    'error': str(e),
+                    'note': 'Separation failed, fell back to original audio'
+                }
+                return result
+
+    except Exception as e:
+        logger.error(f"   ❌ Processing with separation failed: {e}")
+        return {
+            'success': False,
+            'separation_enabled': False,
+            'error': str(e)
+        }
