@@ -175,18 +175,26 @@ class YouTubeDownloader:
                 file_content = f.read()
             
             # Upload to Supabase Storage
+            # Supabase Python client expects 'contentType' key and string values
+            # for options like 'upsert'. Boolean values can cause header errors.
             result = self.supabase.storage.from_('audio-input').upload(
                 path=storage_path,
                 file=file_content,
                 file_options={
-                    'content-type': 'audio/m4a' if file_extension == '.m4a' else 'audio/mpeg',
-                    'upsert': True
+                    'contentType': 'audio/m4a' if file_extension == '.m4a' else (
+                        'audio/webm' if file_extension == '.webm' else 'audio/mpeg'
+                    ),
+                    'upsert': 'true'
                 }
             )
-            
-            if result.error:
-                raise Exception(f"Storage upload failed: {result.error}")
-            
+            # Some client versions return an UploadResponse without 'error'.
+            # If no exception was raised, treat it as success.
+            try:
+                # Best-effort log for debugging
+                logger.info(f"📦 T45: Upload response: {result}")
+            except Exception:
+                pass
+
             logger.info(f"✅ T45: Audio uploaded to storage: {storage_path}")
             
             # Clean up local file

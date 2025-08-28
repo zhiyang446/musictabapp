@@ -304,10 +304,14 @@ def process_job(job_id, job_data=None):
 
             update_progress(30, "RUNNING", "Downloading audio from YouTube")
 
+            # Allow overriding target audio format via job options to aid testing (e.g., 'webm' to skip conversion)
+            job_options = job_data.get('options', {}) if isinstance(job_data, dict) else {}
+            target_format = job_options.get('audio_format', 'm4a')
+
             youtube_result = downloader.process_youtube_audio(
                 youtube_url=youtube_url,
                 job_id=job_id,
-                target_format='m4a'
+                target_format=target_format
             )
 
             # Update job with source_object_path

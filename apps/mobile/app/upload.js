@@ -13,8 +13,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { useAuth } from '../contexts/AuthContext';
 import * as FileSystem from 'expo-file-system';
+import { getOrchestratorUrl } from './config/orchestrator';
 
-const ORCHESTRATOR_URL = process.env.EXPO_PUBLIC_ORCHESTRATOR_URL || 'http://localhost:8000';
+const ORCHESTRATOR_URL = getOrchestratorUrl();
 
 export default function UploadScreen() {
   const params = useLocalSearchParams();

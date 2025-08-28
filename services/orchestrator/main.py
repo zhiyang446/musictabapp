@@ -14,6 +14,8 @@ from dotenv import load_dotenv
 from db import db_client
 from auth import jwt_bearer, jwt_bearer_optional, get_current_user_id
 from celery_client import send_process_job_task
+import time
+import threading
 
 # Load environment variables
 load_dotenv()
@@ -149,6 +151,88 @@ async def root():
 async def health_check():
     """Health check endpoint"""
     return {"ok": True}
+
+# Simple in-memory metadata cache: { video_id: {data, ts} }
+_YT_META_CACHE = {}
+_YT_META_TTL_SEC = 3600
+
+def _extract_video_id(url: str) -> str:
+    try:
+        import urllib.parse as up
+        u = up.urlparse(url)
+        if u.netloc in ("youtu.be",):
+            return u.path.lstrip('/')
+        if u.query:
+            q = up.parse_qs(u.query)
+            if 'v' in q and q['v']:
+                return q['v'][0]
+        # fallback last path seg
+        return u.path.rstrip('/').split('/')[-1]
+    except Exception:
+        return url
+
+def _async_refresh_with_ytdlp(video_url: str, cache_key: str):
+    try:
+        import yt_dlp  # type: ignore
+        with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
+            info = ydl.extract_info(video_url, download=False)
+            duration = info.get('duration')
+            title = info.get('title')
+            uploader = info.get('uploader')
+            thumbs = info.get('thumbnails') or []
+            thumb_url = thumbs[-1]['url'] if thumbs else info.get('thumbnail')
+            _YT_META_CACHE[cache_key] = {
+                'data': {
+                    'title': title,
+                    'duration': duration,
+                    'uploader': uploader,
+                    'thumbnail_url': thumb_url,
+                },
+                'ts': time.time(),
+            }
+    except Exception:
+        # ignore refresh errors
+        pass
+
+@app.post("/youtube/metadata")
+async def youtube_metadata(body: dict):
+    """Return basic metadata for a YouTube URL (title, duration, thumbnail).
+    Fast path: return cached or oEmbed immediately; refresh with yt-dlp in background.
+    """
+    url = body.get("youtube_url")
+    if not url or not isinstance(url, str):
+        raise HTTPException(status_code=400, detail="youtube_url is required")
+    key = _extract_video_id(url)
+    now = time.time()
+    cached = _YT_META_CACHE.get(key)
+    if cached and (now - cached.get('ts', 0) < _YT_META_TTL_SEC):
+        return cached['data']
+
+    # Fast path: oEmbed (title/thumbnail) with short timeout
+    fast_data = None
+    try:
+        import requests  # type: ignore
+        r = requests.get("https://www.youtube.com/oembed", params={"url": url, "format": "json"}, timeout=1.2)
+        if r.status_code == 200:
+            od = r.json()
+            fast_data = {
+                'title': od.get('title'),
+                'duration': None,
+                'uploader': od.get('author_name'),
+                'thumbnail_url': od.get('thumbnail_url'),
+            }
+            _YT_META_CACHE[key] = {'data': fast_data, 'ts': now}
+    except Exception:
+        fast_data = None
+
+    # Background refresh with yt-dlp to fill duration/precise fields
+    threading.Thread(target=_async_refresh_with_ytdlp, args=(url, key), daemon=True).start()
+
+    if fast_data:
+        return fast_data
+
+    # If even oEmbed failed, return 400
+    raise HTTPException(status_code=400, detail="Failed to fetch YouTube metadata quickly")
 
 @app.get("/health/db")
 async def database_health_check():

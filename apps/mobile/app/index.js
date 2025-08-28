@@ -1,9 +1,10 @@
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, TouchableOpacity, Alert, TextInput, ScrollView } from 'react-native';
 import { Link, router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { testConnection } from '../supabase/client';
-const ORCHESTRATOR_URL = process.env.EXPO_PUBLIC_ORCHESTRATOR_URL || 'http://localhost:8000';
+import { getOrchestratorUrl } from './config/orchestrator';
+const ORCHESTRATOR_URL = getOrchestratorUrl();
 import { useAuth } from '../contexts/AuthContext';
 
 export default function HomeScreen() {
@@ -11,6 +12,10 @@ export default function HomeScreen() {
   const [sessionStatus, setSessionStatus] = useState('Unknown');
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [isProcessingYoutube, setIsProcessingYoutube] = useState(false);
+  const [metaLoading, setMetaLoading] = useState(false);
+  const [ytMeta, setYtMeta] = useState(null);
+  const debounceRef = useRef(null);
+  const lastMetaUrlRef = useRef('');
   const { user, session, loading, signOut, isAuthenticated } = useAuth();
 
   useEffect(() => {
@@ -93,7 +98,8 @@ export default function HomeScreen() {
         instruments: ['drums'], // Default to drums for now
         options: {
           separate: true, // Enable separation for YouTube videos
-          precision: 'balanced'
+          precision: 'balanced',
+          audio_format: 'webm'
         }
       };
 
@@ -148,6 +154,76 @@ export default function HomeScreen() {
       setIsProcessingYoutube(false);
     }
   };
+
+  const fetchWithTimeout = (url, options = {}, timeoutMs = 1200) => {
+    return Promise.race([
+      fetch(url, options),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), timeoutMs)),
+    ]);
+  };
+
+  const handleFetchYouTubeInfo = async () => {
+    if (!youtubeUrl.trim()) {
+      Alert.alert('Error', 'Please enter a YouTube URL');
+      return;
+    }
+    setMetaLoading(true);
+    setYtMeta(null);
+    try {
+      // 1) Client-side fast path: oEmbed (no backend依赖，极快)
+      try {
+        const o = await fetchWithTimeout(`https://www.youtube.com/oembed?url=${encodeURIComponent(youtubeUrl.trim())}&format=json`, {}, 1200);
+        const od = await o.json();
+        setYtMeta({ title: od.title, duration: null, uploader: od.author_name, thumbnail_url: od.thumbnail_url });
+      } catch (_) {
+        // ignore; fallback to backend only
+      }
+
+      // 2) Backend补全（含 duration），完成后刷新展示
+      try {
+        const resp = await fetch(`${ORCHESTRATOR_URL}/youtube/metadata`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ youtube_url: youtubeUrl.trim() })
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          setYtMeta(prev => ({ ...(prev || {}), ...data }));
+        }
+      } catch (_e) {
+        // ignore backend slow/失败
+      }
+    } catch (e) {
+      setYtMeta(null);
+      Alert.alert('Fetch Info Failed', String(e?.message || e));
+    } finally {
+      setMetaLoading(false);
+    }
+  };
+
+  // Auto-fetch metadata when user粘贴/输入有效链接（500ms 防抖）
+  useEffect(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    if (!youtubeUrl) {
+      setYtMeta(null);
+      lastMetaUrlRef.current = '';
+      return;
+    }
+    if (!isValidYouTubeUrl(youtubeUrl)) {
+      return; // 等到满足基本格式再请求
+    }
+    debounceRef.current = setTimeout(() => {
+      // 避免重复请求相同 URL
+      if (lastMetaUrlRef.current === youtubeUrl.trim()) return;
+      lastMetaUrlRef.current = youtubeUrl.trim();
+      handleFetchYouTubeInfo();
+    }, 500);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [youtubeUrl]);
 
 
 
@@ -224,6 +300,20 @@ export default function HomeScreen() {
                   {isProcessingYoutube ? 'Processing...' : 'Process Video'}
                 </Text>
               </TouchableOpacity>
+
+              {metaLoading && (
+                <View style={{ backgroundColor: '#eee', borderRadius: 8, padding: 10, alignItems: 'center', marginTop: 8 }}>
+                  <Text style={{ color: '#333' }}>Fetching...</Text>
+                </View>
+              )}
+
+              {ytMeta && !metaLoading && (
+                <View style={{ backgroundColor: '#f8f9fa', borderRadius: 10, padding: 12, marginTop: 10 }}>
+                  <Text style={{ fontWeight: '700', marginBottom: 4 }}>{ytMeta.title || 'Unknown Title'}</Text>
+                  <Text style={{ color: '#555', marginBottom: 2 }}>Uploader: {ytMeta.uploader || 'Unknown'}</Text>
+                  <Text style={{ color: '#555' }}>Duration: {ytMeta.duration != null ? `${Math.floor(ytMeta.duration/60)}:${String(ytMeta.duration%60).padStart(2,'0')}` : 'N/A'}</Text>
+                </View>
+              )}
             </View>
 
             <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>

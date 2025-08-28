@@ -23,8 +23,14 @@ dependencies = [
     "librosa>=0.10.0",
     "scipy>=1.11.0",
     "numpy>=1.24.0",
-
-
+    "demucs>=4.0.0",
+    "torch>=2.0.0",
+    "torchaudio>=2.0.0",
+    "pretty_midi>=0.2.9",
+    "mido>=1.2.10",
+    "music21>=8.1.0",
+    "basic-pitch>=2.0.0",
+    "soundfile>=0.12.1",
 ]
 
 [project.optional-dependencies]
