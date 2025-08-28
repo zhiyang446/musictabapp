@@ -12,8 +12,9 @@ import { StatusBar } from 'expo-status-bar';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { useAuth } from '../contexts/AuthContext';
+import * as FileSystem from 'expo-file-system';
 
-const ORCHESTRATOR_URL = 'http://localhost:8000'; // TODO: Move to env
+const ORCHESTRATOR_URL = process.env.EXPO_PUBLIC_ORCHESTRATOR_URL || 'http://localhost:8000';
 
 export default function UploadScreen() {
   const params = useLocalSearchParams();
@@ -27,7 +28,7 @@ export default function UploadScreen() {
 
   // Extract instrument configuration from navigation params
   const instrumentConfig = {
-    selectedInstrument: params.selectedInstrument || null,
+    selectedInstrument: params.selectedInstrument || 'drums', // Default to drums if not specified
     separateEnabled: params.separateEnabled === 'true',
     precision: params.precision || 'balanced'
   };
@@ -115,14 +116,13 @@ export default function UploadScreen() {
       setUploadUrl(data.url);
       setStoragePath(data.storagePath);
 
-      Alert.alert(
-        'Success',
-        `Signed upload URL obtained!\nStorage path: ${data.storagePath}`,
-        [
-          { text: 'OK' },
-          { text: 'Next: Upload File', onPress: () => router.push('/upload-file') }
-        ]
-      );
+             Alert.alert(
+         'Success',
+         `Signed upload URL obtained!\nStorage path: ${data.storagePath}`,
+         [
+           { text: 'OK' }
+         ]
+       );
 
     } catch (error) {
       console.error('❌ T36: Exception getting upload URL:', error);
@@ -151,36 +151,31 @@ export default function UploadScreen() {
         storagePath: storagePath
       });
 
-      // For React Native Web, we need to handle file upload differently
-      let fileBlob;
-
+      // Upload signed URL: use binary upload in native, blob on web
+      let success = false;
       if (selectedFile.uri.startsWith('blob:') || selectedFile.uri.startsWith('data:')) {
-        // Web environment - convert to blob
+        // Web: upload blob via fetch PUT
         const response = await fetch(selectedFile.uri);
-        fileBlob = await response.blob();
-      } else {
-        // React Native environment - create FormData
-        const formData = new FormData();
-        formData.append('file', {
-          uri: selectedFile.uri,
-          type: selectedFile.mimeType,
-          name: selectedFile.name,
+        const blob = await response.blob();
+        const putResp = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': selectedFile.mimeType || 'audio/mpeg' },
+          body: blob,
         });
-        fileBlob = formData;
+        console.log('📋 T37: Upload response status (web):', putResp.status);
+        success = putResp.ok;
+      } else {
+        // Native: use expo-file-system binary upload
+        const res = await FileSystem.uploadAsync(uploadUrl, selectedFile.uri, {
+          httpMethod: 'PUT',
+          headers: { 'Content-Type': selectedFile.mimeType || 'audio/mpeg' },
+          uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+        });
+        console.log('📋 T37: Upload response status (native):', res.status);
+        success = res.status >= 200 && res.status < 300;
       }
 
-      // Use fetch with PUT method for signed URL upload
-      const response = await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': selectedFile.mimeType || 'audio/mpeg',
-        },
-        body: fileBlob,
-      });
-
-      console.log('📋 T37: Upload response status:', response.status);
-
-      if (response.ok) {
+      if (success) {
         console.log('✅ T37: File upload successful!');
         console.log('📋 T37 DoD Check - Upload status: 200 OK');
         console.log('📋 T37: File uploaded to storage path:', storagePath);
@@ -191,9 +186,7 @@ export default function UploadScreen() {
         // T39: Create transcription job after successful upload
         await createTranscriptionJob();
       } else {
-        const errorText = await response.text();
-        console.error('❌ T37: Upload failed:', response.status, errorText);
-        throw new Error(`Upload failed: ${response.status} ${errorText}`);
+        throw new Error('Upload failed: non-2xx status');
       }
 
     } catch (error) {
@@ -208,25 +201,24 @@ export default function UploadScreen() {
   const createTranscriptionJob = async () => {
     try {
       console.log('🎯 T39: Creating transcription job...');
-      console.log('📋 T39: Job parameters:', {
-        source_type: 'upload',
-        source_object_path: storagePath,
-        instruments: instrumentConfig.selectedInstrument,
-        options: {
-          separate: instrumentConfig.separateEnabled,
-          precision: instrumentConfig.precision
-        }
-      });
+      
+      // Validate required fields
+      if (!instrumentConfig.selectedInstrument) {
+        throw new Error('No instrument selected. Please go back and select an instrument.');
+      }
 
       const jobData = {
         source_type: 'upload',
         source_object_path: storagePath,
-        instruments: [instrumentConfig.selectedInstrument],
+        instruments: [instrumentConfig.selectedInstrument], // Ensure it's an array
         options: {
           separate: instrumentConfig.separateEnabled,
           precision: instrumentConfig.precision
         }
       };
+
+      console.log('📋 T39: Job parameters:', jobData);
+      console.log('🌐 T39: Request URL:', `${ORCHESTRATOR_URL}/jobs`);
 
       const response = await fetch(`${ORCHESTRATOR_URL}/jobs`, {
         method: 'POST',
@@ -264,14 +256,25 @@ export default function UploadScreen() {
       } else {
         const errorData = await response.json();
         console.error('❌ T39: Job creation failed:', response.status, errorData);
-        throw new Error(errorData.message || `Job creation failed: ${response.status}`);
+        
+        // Show detailed error information
+        let errorMessage = `Job creation failed: ${response.status}`;
+        if (errorData.detail) {
+          if (Array.isArray(errorData.detail)) {
+            errorMessage += `\n\nDetails:\n${errorData.detail.join('\n')}`;
+          } else {
+            errorMessage += `\n\nDetails: ${errorData.detail}`;
+          }
+        }
+        
+        throw new Error(errorMessage);
       }
 
     } catch (error) {
       console.error('❌ T39: Exception during job creation:', error);
       Alert.alert(
         'Job Creation Failed',
-        `Failed to create transcription job: ${error.message}\n\nYour file was uploaded successfully, but the job could not be created.`,
+        `Failed to create transcription job:\n\n${error.message}\n\nYour file was uploaded successfully, but the job could not be created.`,
         [
           { text: 'OK' },
           { text: 'Retry', onPress: createTranscriptionJob }

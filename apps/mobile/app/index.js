@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, TouchableOpacity, Alert, TextInput, ScrollView 
 import { Link, router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { testConnection } from '../supabase/client';
+const ORCHESTRATOR_URL = process.env.EXPO_PUBLIC_ORCHESTRATOR_URL || 'http://localhost:8000';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function HomeScreen() {
@@ -96,7 +97,7 @@ export default function HomeScreen() {
         }
       };
 
-      const response = await fetch('http://localhost:8000/jobs', {
+      const response = await fetch(`${ORCHESTRATOR_URL}/jobs`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -161,115 +162,88 @@ export default function HomeScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContainer}>
-      <View style={styles.container}>
-        <Text style={styles.title}>🎵 Music Tab App</Text>
-        <Text style={styles.subtitle}>Transform your music into tabs</Text>
-        <Text style={styles.description}>
-          Welcome to the Music Tab App! Upload audio files or paste YouTube links
-          to convert them into musical notation and tablature.
-        </Text>
+    <View style={styles.container}>
+      <StatusBar style="auto" />
+      
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <View style={styles.header}>
+          <Text style={styles.title}>🎵 Music Tab App</Text>
+          <Text style={styles.subtitle}>AI-Powered Music Transcription</Text>
+        </View>
 
-        {/* YouTube Input Section */}
-        {isAuthenticated && (
-          <View style={styles.youtubeSection}>
-            <Text style={styles.sectionTitle}>🎬 YouTube to Tabs</Text>
-            <Text style={styles.sectionSubtitle}>
-              Paste a YouTube URL to extract and transcribe audio
+        <View style={styles.statusSection}>
+          <Text style={styles.sectionTitle}>System Status</Text>
+          <View style={styles.statusRow}>
+            <Text style={styles.statusLabel}>Supabase:</Text>
+            <Text style={[styles.statusValue, connectionStatus.includes('✅') ? styles.statusSuccess : styles.statusError]}>
+              {connectionStatus}
             </Text>
+          </View>
+          <View style={styles.statusRow}>
+            <Text style={styles.statusLabel}>Session:</Text>
+            <Text style={[styles.statusValue, sessionStatus === 'Authenticated' ? styles.statusSuccess : styles.statusWarning]}>
+              {sessionStatus}
+            </Text>
+          </View>
+        </View>
 
-            <TextInput
-              style={styles.youtubeInput}
-              placeholder="https://www.youtube.com/watch?v=..."
-              value={youtubeUrl}
-              onChangeText={setYoutubeUrl}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              multiline={false}
-              editable={!isProcessingYoutube}
-            />
+        {isAuthenticated ? (
+          <View style={styles.authenticatedSection}>
+            <Text style={styles.welcomeText}>Welcome, {user?.email || 'User'}! 👋</Text>
+            
+            <View style={styles.actionButtons}>
+              <TouchableOpacity style={styles.primaryButton} onPress={navigateToUpload}>
+                <Text style={styles.primaryButtonText}>🎵 Upload Audio</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.secondaryButton} onPress={navigateToInstruments}>
+                <Text style={styles.secondaryButtonText}>⚙️ Configure Instruments</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.secondaryButton} onPress={navigateToJobs}>
+                <Text style={styles.secondaryButtonText}>📋 View Jobs</Text>
+              </TouchableOpacity>
+            </View>
 
-            <TouchableOpacity
-              style={[
-                styles.youtubeButton,
-                (!youtubeUrl.trim() || isProcessingYoutube) && styles.disabledButton
-              ]}
-              onPress={handleYouTubeSubmit}
-              disabled={!youtubeUrl.trim() || isProcessingYoutube}
-            >
-              <Text style={styles.youtubeButtonText}>
-                {isProcessingYoutube ? '🔄 Processing...' : '🎵 Create YouTube Job'}
-              </Text>
+            <View style={styles.youtubeSection}>
+              <Text style={styles.sectionTitle}>🎬 Process YouTube Video</Text>
+              <TextInput
+                style={styles.youtubeInput}
+                placeholder="Enter YouTube URL..."
+                value={youtubeUrl}
+                onChangeText={setYoutubeUrl}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TouchableOpacity 
+                style={[styles.youtubeButton, isProcessingYoutube && styles.disabledButton]}
+                onPress={handleYouTubeSubmit}
+                disabled={isProcessingYoutube}
+              >
+                <Text style={styles.youtubeButtonText}>
+                  {isProcessingYoutube ? 'Processing...' : 'Process Video'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+              <Text style={styles.signOutButtonText}>Sign Out</Text>
             </TouchableOpacity>
-
-            <Text style={styles.youtubeNote}>
-              💡 Tip: Works with YouTube music videos, covers, and performances
-            </Text>
+          </View>
+        ) : (
+          <View style={styles.unauthenticatedSection}>
+            <Text style={styles.loginPrompt}>Please sign in to start transcribing music</Text>
+            <TouchableOpacity style={styles.loginButton} onPress={navigateToLogin}>
+              <Text style={styles.loginButtonText}>Sign In / Sign Up</Text>
+            </TouchableOpacity>
           </View>
         )}
 
-      <View style={styles.statusContainer}>
-        <Text style={styles.statusTitle}>T35 - Authentication Status</Text>
-        <Text style={styles.statusText}>Connection: {connectionStatus}</Text>
-        <Text style={styles.statusText}>
-          User: {isAuthenticated ? `${user?.email}` : 'Not signed in'}
-        </Text>
-        <Text style={styles.statusText}>
-          Session: {isAuthenticated ? 'Authenticated ✅' : 'Anonymous'}
-        </Text>
-        {isAuthenticated && session?.access_token && (
-          <Text style={styles.statusText}>
-            Access Token: Present ✅
-          </Text>
-        )}
-      </View>
-
-      <View style={styles.buttonContainer}>
-        {isAuthenticated ? (
-          <>
-            <TouchableOpacity
-              style={styles.button}
-              onPress={navigateToUpload}
-            >
-              <Text style={styles.buttonText}>Upload Audio</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.button}
-              onPress={navigateToInstruments}
-            >
-              <Text style={styles.buttonText}>Select Instruments</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.button}
-              onPress={navigateToJobs}
-            >
-              <Text style={styles.buttonText}>My Jobs</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.button, styles.signOutButton]}
-              onPress={handleSignOut}
-            >
-              <Text style={styles.signOutButtonText}>Sign Out</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <TouchableOpacity
-            style={styles.button}
-            onPress={navigateToLogin}
-          >
-            <Text style={styles.buttonText}>Sign In</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-      
-        <Text style={styles.version}>T44 - YouTube Integration + T48 Demucs</Text>
-        <StatusBar style="auto" />
-      </View>
-    </ScrollView>
+        <View style={styles.footer}>
+          <Text style={styles.version}>T35 - Home Screen Implementation</Text>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -284,6 +258,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 20,
   },
+  header: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
@@ -297,61 +275,89 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: 'center',
   },
-  description: {
-    fontSize: 16,
-    color: '#777',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 20,
-  },
-  statusContainer: {
+  statusSection: {
     backgroundColor: '#f0f0f0',
     padding: 15,
     borderRadius: 10,
     marginBottom: 20,
     width: '100%',
   },
-  statusTitle: {
+  sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 8,
     textAlign: 'center',
   },
-  statusText: {
+  statusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  statusLabel: {
     fontSize: 14,
     color: '#666',
-    marginBottom: 4,
+  },
+  statusValue: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  statusSuccess: {
+    color: 'green',
+  },
+  statusError: {
+    color: 'red',
+  },
+  statusWarning: {
+    color: 'orange',
+  },
+  authenticatedSection: {
+    backgroundColor: 'white',
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 20,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  welcomeText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 15,
     textAlign: 'center',
   },
-  buttonContainer: {
-    width: '100%',
-    marginBottom: 30,
+  actionButtons: {
+    flexDirection: 'column',
+    marginBottom: 20,
   },
-  button: {
+  primaryButton: {
     backgroundColor: '#007AFF',
     paddingVertical: 15,
     paddingHorizontal: 30,
     borderRadius: 10,
-    marginBottom: 15,
+    marginBottom: 10,
     alignItems: 'center',
   },
-
-  buttonText: {
+  primaryButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
   },
-  version: {
-    fontSize: 14,
-    color: '#999',
-    fontStyle: 'italic',
+  secondaryButton: {
+    backgroundColor: '#e0e0e0',
+    paddingVertical: 15,
+    paddingHorizontal: 30,
+    borderRadius: 10,
+    marginBottom: 10,
+    alignItems: 'center',
   },
-  signOutButton: {
-    backgroundColor: '#FF3B30',
-  },
-  signOutButtonText: {
-    color: 'white',
+  secondaryButtonText: {
+    color: '#333',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -366,19 +372,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 15,
   },
   youtubeInput: {
     borderWidth: 1,
@@ -402,11 +395,55 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  youtubeNote: {
-    fontSize: 12,
-    color: '#888',
+  unauthenticatedSection: {
+    backgroundColor: 'white',
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 20,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    alignItems: 'center',
+  },
+  loginPrompt: {
+    fontSize: 18,
+    color: '#666',
+    marginBottom: 20,
     textAlign: 'center',
+  },
+  loginButton: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 15,
+    paddingHorizontal: 30,
+    borderRadius: 10,
+  },
+  loginButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  footer: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  version: {
+    fontSize: 14,
+    color: '#999',
     fontStyle: 'italic',
+  },
+  signOutButton: {
+    backgroundColor: '#FF3B30',
+    paddingVertical: 15,
+    paddingHorizontal: 30,
+    borderRadius: 10,
+  },
+  signOutButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
   disabledButton: {
     backgroundColor: '#ccc',
