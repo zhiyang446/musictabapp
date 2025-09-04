@@ -574,8 +574,9 @@ def process_with_separation(input_path: str, job_id: str, separate: bool = False
     logger.info(f"🎵 T48: Processing with separation - separate={separate}, method={method}")
 
     try:
-        # Create separator instance
+        # Create separator instance with cleanup disabled to prevent premature file deletion
         separator = create_source_separator()
+        separator.cleanup = False  # Disable automatic cleanup
 
         if not separate:
             # Separation disabled - return original file
@@ -598,16 +599,32 @@ def process_with_separation(input_path: str, job_id: str, separate: bool = False
                     progress_callback=progress_callback
                 )
 
+                # Copy separated files to a persistent location to prevent cleanup issues
+                persistent_files = {}
+                persistent_dir = Path(tempfile.gettempdir()) / f"persistent_stems_{job_id}"
+                persistent_dir.mkdir(parents=True, exist_ok=True)
+
+                logger.info(f"🔄 Copying separated files to persistent location: {persistent_dir}")
+
+                for stem, temp_path in separation_result['stems'].items():
+                    if os.path.exists(temp_path):
+                        persistent_path = persistent_dir / f"{job_id}_{stem}.wav"
+                        shutil.copy2(temp_path, persistent_path)
+                        persistent_files[stem] = str(persistent_path)
+                        logger.info(f"   ✅ Copied {stem}: {os.path.getsize(persistent_path):,} bytes")
+                    else:
+                        logger.warning(f"   ⚠️  Temp file not found for {stem}: {temp_path}")
+
                 result = {
                     'success': True,
                     'separation_enabled': True,
                     'separation_result': {
                         'method': separation_result['method'],
-                        'sources': list(separation_result['stems'].keys()),
-                        'separated_files': separation_result['stems']
+                        'sources': list(persistent_files.keys()),
+                        'separated_files': persistent_files  # Use persistent paths
                     }
                 }
-                logger.info(f"   ✅ Separation completed with method '{method}'")
+                logger.info(f"   ✅ Separation completed with method '{method}', files copied to persistent location")
                 return result
 
             except Exception as e:

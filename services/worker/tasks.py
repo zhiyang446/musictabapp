@@ -8,6 +8,7 @@ Celery tasks for Music Tab App Worker - FIXED
 from app import app
 import time
 import os
+import tempfile
 from datetime import datetime, timezone
 import numpy as np  # ✅
 
@@ -349,6 +350,18 @@ def process_job(job_id, job_data=None):
 
                 print(f"✅ stems uploaded = {uploaded_count}")
                 update_progress(90, "RUNNING", "Stems uploaded")
+
+                # Clean up persistent stem files after successful upload
+                try:
+                    import shutil
+                    from pathlib import Path
+                    persistent_dir = Path(tempfile.gettempdir()) / f"persistent_stems_{job_id}"
+                    if persistent_dir.exists():
+                        shutil.rmtree(persistent_dir)
+                        print(f"🧹 Cleaned up persistent stems directory: {persistent_dir}")
+                except Exception as cleanup_error:
+                    print(f"⚠️  Failed to cleanup persistent stems: {cleanup_error}")
+
             else:
                 print(f"⏭️ separation disabled at runtime: {separation_result.get('note')}")
 
