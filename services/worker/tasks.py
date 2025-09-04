@@ -315,7 +315,7 @@ def process_job(job_id, job_data=None):
                                 supabase.storage.from_(bucket).upload(
                                     path=storage_path,
                                     file=fp,
-                                    file_options={"contentType": "audio/wav", "upsert": True}
+                                    file_options={"contentType": "audio/wav", "upsert": "true"}
                                 )
 
                             import uuid
