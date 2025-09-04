@@ -53,10 +53,16 @@ export default function YouTubeJobScreen() {
 
       const data = await resp.json();
       const jobId = data.jobId || data.id;
-      Alert.alert('Job Created', `YouTube job created.\nJob ID: ${jobId}`, [
+      Alert.alert('Job Created', `YouTube job created.\nJob ID: ${jobId}\n\nRedirecting to job details page...`, [
         { text: 'View', onPress: () => router.push(`/jobs/${jobId}`) },
         { text: 'OK' }
       ]);
+
+      // Auto-redirect after a short delay
+      setTimeout(() => {
+        console.log('🔄 YouTube: Auto-navigating to job details page');
+        router.push(`/jobs/${jobId}`);
+      }, 2000);
     } catch (e) {
       Alert.alert('Create Failed', String(e?.message || e));
     } finally {

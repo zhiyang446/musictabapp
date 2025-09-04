@@ -1,0 +1,34 @@
+Music Tab App - VSCode Terminal Commands
+==========================================
+
+Copy and paste these commands into separate VSCode Terminal tabs:
+
+Terminal Tab 1 (Worker):
+------------------------
+cd services/worker
+..\..\.venv\Scripts\python.exe -m celery -A tasks worker --loglevel=info --pool=solo
+
+Terminal Tab 2 (Orchestrator API):
+----------------------------------
+cd services/orchestrator
+..\..\.venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8080 --reload
+
+Terminal Tab 3 (Expo App):
+--------------------------
+cd apps/mobile
+npx expo start
+
+Service URLs:
+-------------
+• Expo App: http://localhost:8081
+• Orchestrator API: http://localhost:8080
+• Supabase: https://jvmcekqjavgesucxytwh.supabase.co
+
+Instructions:
+-------------
+1. Open VSCode
+2. Press Ctrl+Shift+` to open Terminal
+3. Press the "+" button to create new Terminal tabs (or Ctrl+Shift+`)
+4. Copy and paste each command into a separate tab
+5. Wait 10-15 seconds for all services to start
+6. Visit http://localhost:8081 in your browser

@@ -30,9 +30,13 @@ export default function UploadScreen() {
   // Extract instrument configuration from navigation params
   const instrumentConfig = {
     selectedInstrument: params.selectedInstrument || 'drums', // Default to drums if not specified
-    separateEnabled: params.separateEnabled === 'true',
-    precision: params.precision || 'balanced'
+    separationMethod: params.separationMethod || 'demucs', // Default to demucs for T48 testing
+    precision: params.precision || 'high' // Default to high for T48 testing
   };
+
+  // Debug: Log instrument configuration
+  console.log('🔧 T48 Debug: Upload page loaded with config:', instrumentConfig);
+  console.log('🔧 T48 Debug: Raw params:', params);
 
   const selectAudioFile = async () => {
     try {
@@ -202,7 +206,9 @@ export default function UploadScreen() {
   const createTranscriptionJob = async () => {
     try {
       console.log('🎯 T39: Creating transcription job...');
-      
+      console.log('🔧 T48 Debug: instrumentConfig at job creation:', instrumentConfig);
+      console.log('🔧 T48 Debug: storagePath:', storagePath);
+
       // Validate required fields
       if (!instrumentConfig.selectedInstrument) {
         throw new Error('No instrument selected. Please go back and select an instrument.');
@@ -213,12 +219,14 @@ export default function UploadScreen() {
         source_object_path: storagePath,
         instruments: [instrumentConfig.selectedInstrument], // Ensure it's an array
         options: {
-          separate: instrumentConfig.separateEnabled,
+          separate: instrumentConfig.separationMethod === 'demucs', // T48: Convert to boolean
           precision: instrumentConfig.precision
         }
       };
 
       console.log('📋 T39: Job parameters:', jobData);
+      console.log('🔧 T48 Debug: separate value:', instrumentConfig.separationMethod === 'demucs');
+      console.log('🔧 T48 Debug: separationMethod:', instrumentConfig.separationMethod);
       console.log('🌐 T39: Request URL:', `${ORCHESTRATOR_URL}/jobs`);
 
       const response = await fetch(`${ORCHESTRATOR_URL}/jobs`, {
@@ -242,7 +250,7 @@ export default function UploadScreen() {
 
         Alert.alert(
           'Job Created! 🎉',
-          `Your transcription job has been created.\nJob ID: ${jobId}\n\nYou will be redirected to the job details page.`,
+          `Your transcription job has been created.\nJob ID: ${jobId}\n\nRedirecting to job details page...`,
           [
             {
               text: 'View Job Details',
@@ -254,6 +262,12 @@ export default function UploadScreen() {
             }
           ]
         );
+
+        // Auto-redirect after a short delay
+        setTimeout(() => {
+          console.log('🔄 T39: Auto-navigating to job details page');
+          router.push(`/jobs/${jobId}`);
+        }, 2000);
       } else {
         const errorData = await response.json();
         console.error('❌ T39: Job creation failed:', response.status, errorData);
@@ -311,8 +325,8 @@ export default function UploadScreen() {
   return (
     <ScrollView contentContainerStyle={styles.scrollContainer}>
       <View style={styles.container}>
-        <Text style={styles.title}>🎵 Upload Audio</Text>
-        <Text style={styles.subtitle}>Select an audio file to get started</Text>
+        <Text style={styles.title}>🎵 T48 Audio Upload</Text>
+        <Text style={styles.subtitle}>Upload audio for T48 source separation testing</Text>
 
         {/* Instrument Configuration Display */}
         {instrumentConfig.selectedInstrument && (
@@ -323,9 +337,9 @@ export default function UploadScreen() {
               <Text style={styles.configValue}>{instrumentConfig.selectedInstrument}</Text>
             </View>
             <View style={styles.configItem}>
-              <Text style={styles.configLabel}>Source Separation:</Text>
+              <Text style={styles.configLabel}>T48 Separation Method:</Text>
               <Text style={styles.configValue}>
-                {instrumentConfig.separateEnabled ? 'Enabled' : 'Disabled'}
+                {instrumentConfig.separationMethod === 'demucs' ? 'AI Separation (Demucs)' : 'No Separation'}
               </Text>
             </View>
             <View style={styles.configItem}>
@@ -464,7 +478,8 @@ export default function UploadScreen() {
         )}
 
         <View style={styles.footer}>
-          <Text style={styles.version}>T37 - File Upload Implementation</Text>
+          <Text style={styles.version}>T48 - Mobile Source Separation Upload</Text>
+          <Text style={styles.versionSub}>Testing T47 + T48 integration</Text>
         </View>
       </View>
       <StatusBar style="auto" />
@@ -655,5 +670,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#999',
     fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  versionSub: {
+    fontSize: 12,
+    color: '#999',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 4,
   },
 });

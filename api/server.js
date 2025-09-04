@@ -40,7 +40,7 @@ const envVars = loadEnvFile();
 
 // Configuration - Force local Supabase for development
 const config = {
-  port: process.env.PORT || 3001,
+  port: process.env.PORT || 8000,
   supabaseUrl: 'http://127.0.0.1:54321', // Always use local Supabase
   supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0',
   supabaseServiceKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
@@ -52,6 +52,23 @@ const supabaseAdmin = createClient(config.supabaseUrl, config.supabaseServiceKey
 
 // Initialize Express app
 const app = express();
+
+// Middleware for parsing raw data in PUT requests
+app.use('/api/upload', (req, res, next) => {
+  if (req.method === 'PUT') {
+    let data = '';
+    req.setEncoding('binary');
+    req.on('data', chunk => {
+      data += chunk;
+    });
+    req.on('end', () => {
+      req.body = Buffer.from(data, 'binary');
+      next();
+    });
+  } else {
+    next();
+  }
+});
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -307,10 +324,85 @@ app.post('/api/audio-files', async (req, res) => {
   }
 });
 
-// File upload endpoint
-app.post('/api/upload', upload.single('audio'), async (req, res) => {
+// Get signed upload URL endpoint
+app.post('/upload-url', async (req, res) => {
   try {
-    if (!req.file) {
+    const { fileName, contentType } = req.body;
+
+    if (!fileName || !contentType) {
+      return res.status(400).json({
+        error: 'Validation error',
+        message: 'fileName and contentType are required',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Generate a unique storage path
+    const timestamp = Date.now();
+    const ext = fileName.split('.').pop();
+    const sanitizedName = fileName.replace(/[^a-zA-Z0-9-_]/g, '_');
+    const storagePath = `uploads/${timestamp}_${sanitizedName}`;
+
+    // For now, return a direct upload URL to our local server
+    // In production, this would return a signed URL from cloud storage
+    const uploadUrl = `http://localhost:${config.port}/api/upload`;
+
+    res.status(200).json({
+      success: true,
+      url: uploadUrl,
+      storagePath: storagePath,
+      expiresIn: 3600, // 1 hour
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Upload URL generation error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// File upload endpoint - supports both POST and PUT methods
+const handleFileUpload = async (req, res) => {
+  try {
+    let fileInfo = null;
+    
+    if (req.file) {
+      // POST request with multipart/form-data
+      fileInfo = req.file;
+    } else if (req.method === 'PUT' && req.body && req.body.length > 0) {
+      // PUT request with raw binary data
+      const timestamp = Date.now();
+      const contentType = req.headers['content-type'] || 'audio/wav';
+      const ext = contentType.split('/')[1] || 'wav';
+      const filename = `${timestamp}_upload.${ext}`;
+      const filepath = path.join(process.cwd(), 'uploads', filename);
+      
+      // Ensure upload directory exists
+      const uploadDir = path.join(process.cwd(), 'uploads');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      
+      // Write the raw data to file
+      fs.writeFileSync(filepath, req.body);
+      
+      // Get file stats
+      const stats = fs.statSync(filepath);
+      
+      fileInfo = {
+        filename: filename,
+        originalname: filename,
+        path: filepath,
+        size: stats.size,
+        mimetype: contentType
+      };
+    }
+    
+    if (!fileInfo) {
       return res.status(400).json({
         error: 'No file uploaded',
         message: 'Please select an audio file to upload',
@@ -318,11 +410,26 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
       });
     }
 
-    const { user_id } = req.body;
+    // For PUT requests (direct upload), we'll use a default user or extract from headers
+    // For POST requests, we expect user_id in body
+    let user_id = req.body.user_id;
+    
+    if (!user_id && req.method === 'PUT') {
+      // Try to get user_id from Authorization header or use a default
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        // In a real app, you'd verify the JWT token and extract user_id
+        // For now, we'll use a placeholder approach
+        user_id = '8e6f4a5b-92a9-43e4-9713-58f2dc723e3d'; // Use existing test user
+      } else {
+        // For development, use a default user
+        user_id = '8e6f4a5b-92a9-43e4-9713-58f2dc723e3d';
+      }
+    }
 
     if (!user_id) {
       // Clean up uploaded file if user_id is missing
-      fs.unlinkSync(req.file.path);
+      fs.unlinkSync(fileInfo.path);
       return res.status(400).json({
         error: 'Validation error',
         message: 'user_id is required',
@@ -339,7 +446,7 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
 
     if (userError || !user) {
       // Clean up uploaded file if user doesn't exist
-      fs.unlinkSync(req.file.path);
+      fs.unlinkSync(fileInfo.path);
       return res.status(400).json({
         error: 'Invalid user',
         message: 'User not found',
@@ -350,11 +457,11 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
     // Create audio file record in database
     const audioFileData = {
       user_id: user_id,
-      filename: req.file.filename,
-      original_filename: req.file.originalname,
-      file_size: req.file.size,
-      mime_type: req.file.mimetype,
-      storage_path: req.file.path,
+      filename: fileInfo.filename,
+      original_filename: fileInfo.originalname,
+      file_size: fileInfo.size,
+      mime_type: fileInfo.mimetype,
+      storage_path: fileInfo.path,
       upload_status: 'completed'
     };
 
@@ -367,7 +474,7 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
     if (audioError) {
       console.error('Audio file database error:', audioError);
       // Clean up uploaded file if database insert fails
-      fs.unlinkSync(req.file.path);
+      fs.unlinkSync(fileInfo.path);
       return res.status(500).json({
         error: 'Database error',
         message: 'Failed to save file information',
@@ -389,9 +496,9 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
         created_at: audioFile.created_at
       },
       file_info: {
-        size_mb: (req.file.size / (1024 * 1024)).toFixed(2),
-        type: req.file.mimetype,
-        encoding: req.file.encoding
+        size_mb: (fileInfo.size / (1024 * 1024)).toFixed(2),
+        type: fileInfo.mimetype,
+        encoding: fileInfo.encoding || 'binary'
       },
       timestamp: new Date().toISOString()
     });
@@ -400,8 +507,8 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
     console.error('Upload endpoint error:', error);
 
     // Clean up uploaded file on error
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+    if (fileInfo && fs.existsSync(fileInfo.path)) {
+      fs.unlinkSync(fileInfo.path);
     }
 
     res.status(500).json({
@@ -410,7 +517,11 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
       timestamp: new Date().toISOString()
     });
   }
-});
+};
+
+// Register both POST and PUT methods for file upload
+app.post('/api/upload', upload.single('audio'), handleFileUpload);
+app.put('/api/upload', handleFileUpload);
 
 // Transcription jobs API endpoints
 app.get('/api/transcription-jobs', async (req, res) => {

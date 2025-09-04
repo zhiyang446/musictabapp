@@ -12,7 +12,11 @@
     "npm": ">=9.0.0"
   },
   "scripts": {
+    "start": "npm run --workspace=mobile start",
     "dev": "concurrently \"npm run api:start\" \"npm run frontend:start\"",
+    "dev:all": "powershell -ExecutionPolicy Bypass -File dev-start.ps1",
+    "dev:status": "powershell -ExecutionPolicy Bypass -File dev-start.ps1 -Status",
+    "dev:stop": "powershell -ExecutionPolicy Bypass -File dev-start.ps1 -StopAll",
     "test-frontend": "node scripts/test-frontend.js",
     "test-transcription": "node scripts/test-transcription-jobs.js",
     "test-status-updates": "node scripts/test-status-updates.js",
@@ -61,7 +65,7 @@
   },
   "packageManager": "npm@9.8.1",
   "dependencies": {
-    "@supabase/supabase-js": "^2.55.0",
+    "@supabase/supabase-js": "^2.57.0",
     "concurrently": "^9.2.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",

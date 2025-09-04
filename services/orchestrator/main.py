@@ -606,7 +606,7 @@ async def get_artifact_signed_url(
         storage_path = artifact["storage_path"]
 
         # Create signed download URL (use audio-input bucket since artifacts bucket doesn't exist)
-        signed_url_response = supabase.storage.from_("audio-input").create_signed_url(
+        signed_url_response = supabase.storage.from_("audio-stems").create_signed_url(
             storage_path,
             expires_in=3600  # 1 hour
         )

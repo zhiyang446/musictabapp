@@ -23,7 +23,18 @@ const INSTRUMENTS = [
 ];
 
 const SEPARATION_OPTIONS = [
-  { id: 'separate', name: 'Source Separation', description: 'Separate instruments before transcription' },
+  {
+    id: 'none',
+    name: 'No Separation',
+    description: 'Use original audio (faster, T48 none method)',
+    method: 'none'
+  },
+  {
+    id: 'demucs',
+    name: 'AI Separation (Demucs)',
+    description: 'High-quality AI separation (slower, T48 demucs method)',
+    method: 'demucs'
+  },
 ];
 
 const PRECISION_OPTIONS = [
@@ -33,9 +44,9 @@ const PRECISION_OPTIONS = [
 ];
 
 export default function InstrumentsScreen() {
-  const [selectedInstrument, setSelectedInstrument] = useState(null);
-  const [separateEnabled, setSeparateEnabled] = useState(false);
-  const [precision, setPrecision] = useState('balanced');
+  const [selectedInstrument, setSelectedInstrument] = useState('drums'); // Default to drums for T48 testing
+  const [separationMethod, setSeparationMethod] = useState('demucs'); // Default to demucs for T48 testing
+  const [precision, setPrecision] = useState('high'); // Default to high precision for T48 testing
   const [loading, setLoading] = useState(true);
   const [isClearing, setIsClearing] = useState(false);
   const { isAuthenticated } = useAuth();
@@ -50,7 +61,7 @@ export default function InstrumentsScreen() {
     if (!loading && !isClearing) {
       saveSelections();
     }
-  }, [selectedInstrument, separateEnabled, precision, loading, isClearing]);
+  }, [selectedInstrument, separationMethod, precision, loading, isClearing]);
 
   const loadSavedSelections = async () => {
     try {
@@ -58,9 +69,9 @@ export default function InstrumentsScreen() {
 
       if (savedData) {
         const parsed = JSON.parse(savedData);
-        setSelectedInstrument(parsed.instrument || null);
-        setSeparateEnabled(parsed.separate || false);
-        setPrecision(parsed.precision || 'balanced');
+        setSelectedInstrument(parsed.instrument || 'drums');
+        setSeparationMethod(parsed.separationMethod || 'demucs');
+        setPrecision(parsed.precision || 'high');
       }
     } catch (error) {
       console.error('Error loading selections:', error);
@@ -73,7 +84,7 @@ export default function InstrumentsScreen() {
     try {
       const dataToSave = {
         instrument: selectedInstrument,
-        separate: separateEnabled,
+        separationMethod: separationMethod,
         precision: precision,
         timestamp: new Date().toISOString(),
       };
@@ -89,8 +100,8 @@ export default function InstrumentsScreen() {
     setSelectedInstrument(newSelection);
   };
 
-  const toggleSeparation = () => {
-    setSeparateEnabled(!separateEnabled);
+  const selectSeparationMethod = (method) => {
+    setSeparationMethod(method);
   };
 
   const selectPrecision = (precisionLevel) => {
@@ -108,9 +119,9 @@ export default function InstrumentsScreen() {
       setIsClearing(true);
 
       // Reset all state
-      setSelectedInstrument(null);
-      setSeparateEnabled(false);
-      setPrecision(null);
+      setSelectedInstrument('drums');
+      setSeparationMethod('demucs');
+      setPrecision('high');
 
       // Re-enable auto-save after a delay
       setTimeout(() => {
@@ -145,8 +156,8 @@ export default function InstrumentsScreen() {
       pathname: '/upload',
       params: {
         selectedInstrument,
-        separateEnabled: separateEnabled.toString(),
-        precision: precision || 'balanced'
+        separationMethod: separationMethod,
+        precision: precision || 'high'
       }
     });
   };
@@ -180,8 +191,18 @@ export default function InstrumentsScreen() {
   return (
     <ScrollView contentContainerStyle={styles.scrollContainer}>
       <View style={styles.container}>
-        <Text style={styles.title}>🎵 Instrument Selection</Text>
-        <Text style={styles.subtitle}>Choose instruments to transcribe</Text>
+        <Text style={styles.title}>🎵 T48 Mobile Test Setup</Text>
+        <Text style={styles.subtitle}>Configure T48 Source Separation Testing</Text>
+
+        <View style={styles.testInfoSection}>
+          <Text style={styles.testInfoTitle}>📱 T48 Mobile Test Guide</Text>
+          <Text style={styles.testInfoText}>
+            • Default: Drums + AI Separation (Demucs) + High Precision{'\n'}
+            • Test both separation methods: None vs Demucs{'\n'}
+            • Upload: Rolling In The Deep - Adele DRUM COVER.mp3{'\n'}
+            • Monitor processing progress and verify results
+          </Text>
+        </View>
 
 
 
@@ -227,37 +248,43 @@ export default function InstrumentsScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Processing Options</Text>
-          
-          <TouchableOpacity
-            style={[
-              styles.optionCard,
-              separateEnabled && styles.selectedCard
-            ]}
-            onPress={toggleSeparation}
-          >
-            <View style={styles.optionHeader}>
-              <View style={styles.optionInfo}>
-                <Text style={[
-                  styles.optionName,
-                  separateEnabled && styles.selectedText
+          <Text style={styles.sectionTitle}>🎯 T48 Source Separation Method</Text>
+          <Text style={styles.sectionDescription}>
+            Choose separation method for T48 testing
+          </Text>
+
+          {SEPARATION_OPTIONS.map((option) => (
+            <TouchableOpacity
+              key={option.id}
+              style={[
+                styles.separationCard,
+                separationMethod === option.id && styles.selectedCard
+              ]}
+              onPress={() => selectSeparationMethod(option.id)}
+            >
+              <View style={styles.separationHeader}>
+                <View style={styles.separationInfo}>
+                  <Text style={[
+                    styles.separationName,
+                    separationMethod === option.id && styles.selectedText
+                  ]}>
+                    {option.name}
+                  </Text>
+                  <Text style={styles.separationDescription}>
+                    {option.description}
+                  </Text>
+                </View>
+                <View style={[
+                  styles.radioButton,
+                  separationMethod === option.id && styles.selectedRadio
                 ]}>
-                  Source Separation
-                </Text>
-                <Text style={styles.optionDescription}>
-                  Separate instruments before transcription for better accuracy
-                </Text>
+                  {separationMethod === option.id && (
+                    <View style={styles.radioDot} />
+                  )}
+                </View>
               </View>
-              <View style={[
-                styles.checkbox,
-                separateEnabled && styles.checkedBox
-              ]}>
-                {separateEnabled && (
-                  <Text style={styles.checkmark}>✓</Text>
-                )}
-              </View>
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          ))}
         </View>
 
         <View style={styles.section}>
@@ -324,7 +351,8 @@ export default function InstrumentsScreen() {
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.version}>T38 - Instrument Selection</Text>
+          <Text style={styles.version}>T48 - Mobile Source Separation Test</Text>
+          <Text style={styles.versionSub}>Ready for real device testing 📱</Text>
         </View>
       </View>
       <StatusBar style="auto" />
@@ -352,7 +380,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     textAlign: 'center',
-    marginBottom: 30,
+    marginBottom: 20,
+  },
+  testInfoSection: {
+    backgroundColor: '#e3f2fd',
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#2196f3',
+  },
+  testInfoTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1976d2',
+    marginBottom: 8,
+  },
+  testInfoText: {
+    fontSize: 14,
+    color: '#1565c0',
+    lineHeight: 20,
   },
   section: {
     backgroundColor: 'white',
@@ -454,6 +501,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
+  separationCard: {
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 10,
+    backgroundColor: '#fafafa',
+  },
+  separationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  separationInfo: {
+    flex: 1,
+  },
+  separationName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  separationDescription: {
+    fontSize: 14,
+    color: '#666',
+  },
   precisionCard: {
     borderWidth: 2,
     borderColor: '#e0e0e0',
@@ -536,5 +608,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#999',
     fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  versionSub: {
+    fontSize: 12,
+    color: '#999',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 4,
   },
 });

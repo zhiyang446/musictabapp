@@ -54,36 +54,134 @@ repo/
 
 - Node.js 18+
 - Python 3.9+
-- Docker & Docker Compose
-- Supabase 账户
+- Redis 服务器
+- VSCode (推荐)
 
-### 本地开发
+### 🔧 环境设置
 
 1. **克隆项目**
-
    ```bash
    git clone <repository-url>
    cd musictabapp
    ```
 
-2. **启动后端服务**
-
+2. **安装依赖**
    ```bash
-   docker-compose up -d
-   ```
+   # Python 依赖
+   pip install -r requirements.txt
 
-3. **启动移动应用**
-
-   ```bash
-   cd apps/mobile
+   # Node.js 依赖
    npm install
-   npm start
+   cd apps/mobile && npm install
    ```
 
-4. **配置 Supabase**
-   - 创建 Supabase 项目
-   - 配置环境变量
-   - 运行数据库迁移
+3. **配置环境变量**
+   ```bash
+   cp .env.example .env
+   # 编辑 .env 文件，填入 Supabase 凭据
+   ```
+
+## 🎯 开发环境启动
+
+### 方法 1：VSCode 任务（推荐）⭐
+
+1. **在 VSCode 中打开项目**
+2. **按 `Ctrl+Shift+P`**
+3. **输入 "Tasks: Run Task"**
+4. **选择 "Start All Services"**
+
+这会自动在 VSCode Terminal 中创建 3 个标签页并启动所有服务！
+
+### 方法 2：PowerShell 脚本
+
+```powershell
+# 启动所有服务
+.\start-vscode.ps1
+
+# 检查服务状态
+.\start-vscode.ps1 -Status
+
+# 停止所有服务
+.\start-vscode.ps1 -Stop
+```
+
+### 方法 3：手动启动
+
+在 VSCode 中打开 3 个终端标签页，分别运行：
+
+**终端 1 (Worker):**
+```bash
+cd services/worker
+..\..\.venv\Scripts\python.exe -m celery -A tasks worker --loglevel=info --pool=solo
+```
+
+**终端 2 (Orchestrator API):**
+```bash
+cd services/orchestrator
+..\..\.venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8080 --reload
+```
+
+**终端 3 (Expo App):**
+```bash
+cd apps/mobile
+npx expo start
+```
+
+## 🌐 服务地址
+
+- **移动应用**: http://localhost:8081
+- **API 服务器**: http://localhost:8080
+- **Supabase**: https://jvmcekqjavgesucxytwh.supabase.co
+
+## 📱 测试应用
+
+1. **等待所有服务启动** (10-15 秒)
+2. **打开浏览器**: http://localhost:8081
+3. **上传音频文件**
+4. **启用 "Source Separation"**
+5. **选择乐器** (如：drums)
+6. **点击 "Process Audio"**
+7. **观察进度条**
+8. **下载生成的文件**
+
+## 🔧 开发脚本
+
+| 脚本 | 描述 |
+|------|------|
+| `.\start-vscode.ps1` | 在 VSCode 中自动启动所有服务 |
+| `.\start-vscode.ps1 -Status` | 检查服务状态 |
+| `.\start-vscode.ps1 -Stop` | 停止所有服务 |
+| `.\start-vscode.ps1 -Tasks` | 显示 VSCode 任务使用说明 |
+
+## 🔍 故障排除
+
+### 服务无法启动？
+```powershell
+# 检查运行状态
+.\start-vscode.ps1 -Status
+
+# 停止所有服务并重启
+.\start-vscode.ps1 -Stop
+.\start-vscode.ps1
+```
+
+### 连接错误？
+- 确保所有服务都在运行
+- 检查端口 8080, 8081 是否可用
+- 验证 Redis 在端口 6379 上运行
+
+### VSCode 任务不工作？
+- 确保在项目根目录
+- 尝试手动终端方法
+- 检查 `.vscode/tasks.json` 文件存在
+
+## 📝 开发工作流程
+
+1. **启动服务**: 使用 VSCode 任务或脚本
+2. **修改代码**: 在 VSCode 中编辑
+3. **测试**: 使用 localhost:8081 的移动应用
+4. **调试**: 查看 VSCode 终端日志
+5. **停止服务**: 完成后使用停止脚本
 
 ## 🎯 MVP 功能
 
@@ -91,6 +189,7 @@ repo/
 
 - ✅ 鼓谱转录
 - ✅ 贝斯转录
+- ✅ 源分离 (Demucs)
 - ✅ MusicXML/MIDI/PDF 输出
 - ✅ PDF 预览功能
 - ✅ 实时任务进度
@@ -112,4 +211,31 @@ repo/
 
 ---
 
+## 🆘 快速帮助
+
+### 🚀 最快启动方式
+1. **打开 VSCode**
+2. **按 `Ctrl+Shift+P`**
+3. **输入 "run task"**
+4. **选择 "Start All Services"**
+5. **等待 10-15 秒**
+6. **访问 http://localhost:8081**
+
+### 📊 检查状态
+```powershell
+.\start-vscode.ps1 -Status
+```
+
+### 🛑 停止服务
+```powershell
+.\start-vscode.ps1 -Stop
+```
+
+### 📋 查看日志
+在 VSCode Terminal 标签页中查看实时日志
+
+---
+
 > 🎵 让音乐转录变得简单高效
+
+**每次重启 IDE 后，只需一个命令：`Ctrl+Shift+P` → "Tasks: Run Task" → "Start All Services"** ⭐

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Web Config</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .config-box {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border-left: 4px solid #007AFF;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .warning { background: #fff3cd; color: #856404; }
+        button {
+            background: #007AFF;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Web Config Debug Tool</h1>
+    
+    <div class="config-box">
+        <h3>Environment Variables</h3>
+        <div id="env-vars"></div>
+    </div>
+    
+    <div class="config-box">
+        <h3>Platform Detection</h3>
+        <div id="platform-info"></div>
+    </div>
+    
+    <div class="config-box">
+        <h3>Orchestrator URL Test</h3>
+        <button onclick="testOrchestratorUrl()">Test Current Config</button>
+        <button onclick="testDirectUrl()">Test Direct URL</button>
+        <div id="test-results"></div>
+    </div>
+    
+    <div class="config-box">
+        <h3>Manual Test</h3>
+        <input type="text" id="manual-url" placeholder="Enter URL to test" style="width: 300px; padding: 8px;">
+        <button onclick="testManualUrl()">Test URL</button>
+        <div id="manual-results"></div>
+    </div>
+
+    <script>
+        // Display environment variables
+        function displayEnvVars() {
+            const envDiv = document.getElementById('env-vars');
+            const envVars = {
+                'EXPO_PUBLIC_ORCHESTRATOR_URL': process.env.EXPO_PUBLIC_ORCHESTRATOR_URL || 'undefined',
+                'NODE_ENV': process.env.NODE_ENV || 'undefined'
+            };
+            
+            let html = '';
+            for (const [key, value] of Object.entries(envVars)) {
+                html += `<div><strong>${key}:</strong> ${value}</div>`;
+            }
+            envDiv.innerHTML = html;
+        }
+        
+        // Display platform info
+        function displayPlatformInfo() {
+            const platformDiv = document.getElementById('platform-info');
+            const info = {
+                'User Agent': navigator.userAgent,
+                'Platform': navigator.platform,
+                'Location': window.location.href,
+                'Protocol': window.location.protocol,
+                'Host': window.location.host
+            };
+            
+            let html = '';
+            for (const [key, value] of Object.entries(info)) {
+                html += `<div><strong>${key}:</strong> ${value}</div>`;
+            }
+            platformDiv.innerHTML = html;
+        }
+        
+        // Get orchestrator URL (simulate the app logic)
+        function getOrchestratorUrl() {
+            // Check environment variable first
+            const envUrl = process.env.EXPO_PUBLIC_ORCHESTRATOR_URL;
+            if (envUrl && typeof envUrl === 'string' && envUrl.startsWith('http')) {
+                return envUrl;
+            }
+            
+            // Web fallback
+            return 'http://localhost:8080';
+        }
+        
+        // Test orchestrator URL
+        async function testOrchestratorUrl() {
+            const resultsDiv = document.getElementById('test-results');
+            const url = getOrchestratorUrl();
+            
+            resultsDiv.innerHTML = `<div class="warning">Testing: ${url}/health</div>`;
+            
+            try {
+                const response = await fetch(`${url}/health`);
+                if (response.ok) {
+                    const data = await response.json();
+                    resultsDiv.innerHTML += `<div class="success">✅ SUCCESS: ${JSON.stringify(data)}</div>`;
+                } else {
+                    resultsDiv.innerHTML += `<div class="error">❌ HTTP ${response.status}: ${response.statusText}</div>`;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML += `<div class="error">❌ ERROR: ${error.message}</div>`;
+            }
+        }
+        
+        // Test direct URL
+        async function testDirectUrl() {
+            const resultsDiv = document.getElementById('test-results');
+            const urls = [
+                'http://localhost:8080/health',
+                'http://127.0.0.1:8080/health',
+                'http://192.168.1.105:8080/health'
+            ];
+            
+            resultsDiv.innerHTML = '<div class="warning">Testing multiple URLs...</div>';
+            
+            for (const url of urls) {
+                try {
+                    const response = await fetch(url);
+                    if (response.ok) {
+                        const data = await response.json();
+                        resultsDiv.innerHTML += `<div class="success">✅ ${url}: ${JSON.stringify(data)}</div>`;
+                    } else {
+                        resultsDiv.innerHTML += `<div class="error">❌ ${url}: HTTP ${response.status}</div>`;
+                    }
+                } catch (error) {
+                    resultsDiv.innerHTML += `<div class="error">❌ ${url}: ${error.message}</div>`;
+                }
+            }
+        }
+        
+        // Test manual URL
+        async function testManualUrl() {
+            const manualUrl = document.getElementById('manual-url').value;
+            const resultsDiv = document.getElementById('manual-results');
+            
+            if (!manualUrl) {
+                resultsDiv.innerHTML = '<div class="warning">Please enter a URL</div>';
+                return;
+            }
+            
+            resultsDiv.innerHTML = `<div class="warning">Testing: ${manualUrl}</div>`;
+            
+            try {
+                const response = await fetch(manualUrl);
+                if (response.ok) {
+                    const data = await response.json();
+                    resultsDiv.innerHTML += `<div class="success">✅ SUCCESS: ${JSON.stringify(data)}</div>`;
+                } else {
+                    resultsDiv.innerHTML += `<div class="error">❌ HTTP ${response.status}: ${response.statusText}</div>`;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML += `<div class="error">❌ ERROR: ${error.message}</div>`;
+            }
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            displayEnvVars();
+            displayPlatformInfo();
+            
+            // Set default manual URL
+            document.getElementById('manual-url').value = 'http://localhost:8080/health';
+        });
+    </script>
+</body>
+</html>

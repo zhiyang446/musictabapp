@@ -325,13 +325,24 @@
 
 ---
 
-**T48 — 源分离（可选开关）**
-- **目标**：提供 `options.separate=[none|demucs|spleeter]`，默认 `none`，可切到 `demucs`（质量优先）或 `spleeter`（速度优先）
-- **实现**：
- - **Demucs**：`python -m demucs -n htdemucs_ft tmp/normalized.wav` → 输出 `separated/htdemucs_ft/normalized/` 下 `drums.wav | bass.wav | other.wav | vocals.wav`（模型可能不同，按实际为准）
- - **Spleeter(5stems)**：`spleeter separate -i tmp/normalized.wav -p spleeter:5stems -o separated/`
-- **DoD**：当 `separate != none`，产出对应 stem 文件夹；否则直接将 `tmp/normalized.wav` 复制作为 `stems/drums.wav`（占位）
-- **测试**：开/关分离开关，确认后续步骤均可继续
+## T48 — 源分离（可选开关）
+
+**目标**：提供 `options.separate=[none|demucs|spleeter]`，默认 `none`，可切到 `demucs`（质量优先）或 `spleeter`（速度优先）。
+
+**实现**：
+- **Demucs**：`python -m demucs -n htdemucs_ft tmp/normalized.wav` → 输出 `separated/htdemucs_ft/normalized/` 下 `drums.wav | bass.wav | other.wav | vocals.wav`
+- **Spleeter (5stems)**：`spleeter separate -i tmp/normalized.wav -p spleeter:5stems -o separated/`
+- 当 `separate=none` 时，将 `tmp/normalized.wav` 复制为 `stems/drums.wav` 占位。
+
+**测试目标**：
+1. 在本地 CLI 运行时：切换不同选项，正确生成对应文件夹与音频文件。
+2. 在 API 调用时：上传音频 → Job 运行 → 输出目录存在对应 `drums.wav` 文件。
+3. 如果选择 `none`，必须仍能继续执行 T49，不因缺少 stems 报错。
+
+**真机测试 (Website / Mobile)**：
+- 前端上传一段歌，选择不同 separation 选项，等待任务完成。
+- 在结果界面能看到：如果选了 `demucs`，有干净的鼓 stem 试听；如果选 `none`，鼓轨和原曲一致。
+- 用户必须能在手机端听到分离后的鼓轨，不卡顿、不报错。
 
 ---
 

@@ -123,7 +123,7 @@ export default function HomeScreen() {
 
         Alert.alert(
           'YouTube Job Created! 🎉',
-          `Your YouTube transcription job has been created.\nJob ID: ${jobId}\n\nThe video will be downloaded and processed automatically.`,
+          `Your YouTube transcription job has been created.\nJob ID: ${jobId}\n\nRedirecting to job details page...`,
           [
             {
               text: 'View Job Details',
@@ -134,6 +134,13 @@ export default function HomeScreen() {
             }
           ]
         );
+
+        // Auto-redirect after a short delay
+        setTimeout(() => {
+          console.log('🔄 T44: Auto-navigating to job details page');
+          setYoutubeUrl(''); // Clear the input
+          router.push(`/jobs/${jobId}`);
+        }, 2000);
       } else {
         const errorData = await response.json();
         console.error('❌ T44: YouTube job creation failed:', response.status, errorData);
@@ -278,6 +285,13 @@ export default function HomeScreen() {
               
               <TouchableOpacity style={styles.secondaryButton} onPress={navigateToJobs}>
                 <Text style={styles.secondaryButtonText}>📋 View Jobs</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.secondaryButton, { backgroundColor: '#FF6B35' }]}
+                onPress={() => router.push('/test-t48')}
+              >
+                <Text style={[styles.secondaryButtonText, { color: 'white' }]}>🧪 T48 Test</Text>
               </TouchableOpacity>
             </View>
 
